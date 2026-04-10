@@ -494,9 +494,9 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                         width: `${message.concept_score}%`,
                                                                         background: message.concept_score >= 80
                                                                             ? '#22c55e'
-                                                                            : message.concept_score >= 50
-                                                                            ? `linear-gradient(to right, #ef4444, #f59e0b)`
-                                                                            : '#ef4444'
+                                                                            : message.concept_score >= 60
+                                                                            ? `hsl(${Math.round((message.concept_score - 60) * 2.25)}, 85%, 50%)`
+                                                                            : `hsl(${Math.round(message.concept_score * 0.67)}, 85%, 50%)`
                                                                     }}
                                                                 />
                                                             </div>

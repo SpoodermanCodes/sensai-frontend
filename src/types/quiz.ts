@@ -166,4 +166,7 @@ export interface AIResponse {
     alternate_solutions?: AlternateSolution[];
     code_xray?: CodeAnnotation[];
     breakthrough_moment?: string;
+    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error';
+    concept_score?: number;
+    mini_lesson?: string;
 }

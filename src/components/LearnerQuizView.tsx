@@ -468,6 +468,19 @@ export default function LearnerQuizView({
                             if (contentObj && contentObj.is_correct !== undefined) {
                                 chatMessage.is_correct = contentObj.is_correct;
                             }
+
+                            // Extract wrong_answer_type and concept_score (short-answer objective)
+                            if (contentObj && contentObj.wrong_answer_type) {
+                                chatMessage.wrong_answer_type = contentObj.wrong_answer_type;
+                            }
+                            if (contentObj && contentObj.concept_score !== undefined && contentObj.concept_score !== null) {
+                                chatMessage.concept_score = contentObj.concept_score;
+                            }
+
+                            // Extract breakthrough_moment if available
+                            if (contentObj && contentObj.breakthrough_moment) {
+                                chatMessage.breakthrough_moment = contentObj.breakthrough_moment;
+                            }
                         } catch (error) {
                             // If parsing fails, assume it's the old format (plain text)
                             // Keep the original content as is - it's already set in chatMessage
@@ -718,7 +731,11 @@ export default function LearnerQuizView({
             // For chat type or any other type, just include feedback
             contentObj = {
                 feedback: aiResponse.feedback,
-                is_correct: aiResponse.is_correct
+                is_correct: aiResponse.is_correct,
+                ...(aiResponse.wrong_answer_type && { wrong_answer_type: aiResponse.wrong_answer_type }),
+                ...(aiResponse.concept_score !== undefined && aiResponse.concept_score !== null && { concept_score: aiResponse.concept_score }),
+                ...(aiResponse.breakthrough_moment && { breakthrough_moment: aiResponse.breakthrough_moment }),
+                ...(aiResponse.mini_lesson && { mini_lesson: aiResponse.mini_lesson }),
             };
         }
         let aiContent = JSON.stringify(contentObj);
