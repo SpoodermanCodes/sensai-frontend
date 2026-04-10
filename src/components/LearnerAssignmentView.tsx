@@ -389,12 +389,12 @@ export default function LearnerAssignmentView({
     // Derived config for ChatView
     const currentQuestionConfig = useMemo(() => ({
         title: title || "Assignment",
-        inputType: submissionType || "text",
+        inputType: (submissionType === 'code' ? 'code' : submissionType === 'audio' ? 'audio' : 'text') as 'text' | 'audio' | 'code',
         responseType: "chat",
         questionType: "subjective",
         correctAnswer: [],
         scorecardData: undefined,
-        codingLanguages: [],
+        codingLanguages: ['python'],
         settings: settings,
     }), [title, submissionType, settings]);
 
@@ -723,8 +723,7 @@ export default function LearnerAssignmentView({
                                         // Detect when report (scorecard) starts preparing as soon as we see scores and completed status
                                         if (data.key_area_scores && !showPreparingReport && (assignmentResponse.evaluation_status === "completed" || data.evaluation_status === "completed")) {
                                             setShowPreparingReport(true);
-                                        }
-                                    } catch (err) {
+                                        }                                    } catch (err) {
                                         // Parsing failed - log but don't throw
                                         // This allows the stream to continue processing even if one line fails
                                         console.error('assignment stream: JSON parse failed', { linePreview: trimmedLine.slice(0, 200) }, err);
@@ -776,7 +775,12 @@ export default function LearnerAssignmentView({
                                     const newHistory = [...prev];
                                     const lastIndex = newHistory.length - 1;
                                     if (lastIndex >= 0 && newHistory[lastIndex].sender === 'ai') {
-                                        newHistory[lastIndex] = { ...newHistory[lastIndex], rawContent: finalRaw } as any;
+                                        const updated: any = { ...newHistory[lastIndex], rawContent: finalRaw };
+                                        // Attach annotation fields so ChatHistoryView can render them
+                                        if ((assignmentResponse as any).inline_annotations) updated.inline_annotations = (assignmentResponse as any).inline_annotations;
+                                        if ((assignmentResponse as any).architectural_review) updated.architectural_review = (assignmentResponse as any).architectural_review;
+                                        if ((assignmentResponse as any).code_xray) updated.code_xray = (assignmentResponse as any).code_xray;
+                                        newHistory[lastIndex] = updated;
                                     }
                                     return newHistory;
                                 });
@@ -1226,7 +1230,7 @@ export default function LearnerAssignmentView({
                                 completedQuestionIds={{}}
                                 currentQuestionId={"assignment"}
                                 userId={userId}
-                                showUploadSection={needsResubmission}
+                                showUploadSection={submissionType !== 'code' && needsResubmission}
                                 onFileUploaded={handleFileSubmit}
                                     onFileDownload={handleFileDownload}
                             />

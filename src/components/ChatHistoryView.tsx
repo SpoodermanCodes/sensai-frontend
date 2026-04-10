@@ -531,6 +531,40 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                         </div>
                                                     )}
 
+                                                    {/* Inline annotations — for text assignment submissions */}
+                                                    {message.sender === 'ai' && (message as any).inline_annotations?.length > 0 && (
+                                                        <div className="mt-3 space-y-2">
+                                                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">📝 Inline feedback</div>
+                                                            {(message as any).inline_annotations.map((ann: any, i: number) => (
+                                                                <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${
+                                                                    ann.type === 'strength' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800/40' :
+                                                                    ann.type === 'issue' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/40' :
+                                                                    'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800/40'
+                                                                }`}>
+                                                                    <p className="italic text-gray-600 dark:text-gray-400 mb-1">&ldquo;{ann.quote}&rdquo;</p>
+                                                                    <p className={`font-medium ${
+                                                                        ann.type === 'strength' ? 'text-emerald-800 dark:text-emerald-300' :
+                                                                        ann.type === 'issue' ? 'text-red-800 dark:text-red-300' :
+                                                                        'text-blue-800 dark:text-blue-300'
+                                                                    }`}>{ann.comment}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Architectural review — for code assignment submissions */}
+                                                    {message.sender === 'ai' && (message as any).architectural_review && (
+                                                        <div className="mt-3 p-3 rounded-lg bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800/40">
+                                                            <div className="flex items-start gap-2">
+                                                                <span className="text-lg mt-0.5">🏗️</span>
+                                                                <div className="flex-1">
+                                                                    <div className="text-xs font-medium text-indigo-800 dark:text-indigo-300 mb-1">Architectural Review</div>
+                                                                    <div className="text-sm text-indigo-900 dark:text-indigo-200">{(message as any).architectural_review}</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {shouldShowViewReport(message) && (
                                                         <div className="my-3">
                                                             <button
