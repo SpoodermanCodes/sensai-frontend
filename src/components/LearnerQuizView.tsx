@@ -81,6 +81,10 @@ export default function LearnerQuizView({
                 setCurrentQuestionIndex(index);
                 // Reset to chat view when changing questions
                 setIsViewingScorecard(false);
+                
+                // Set initial code view state based on question type
+                const isCode = questions[index]?.config?.inputType === 'code';
+                setCodeViewState(prev => ({ ...prev, isViewingCode: isCode }));
             }
         }
     }, [currentQuestionId, questions]);
@@ -455,6 +459,11 @@ export default function LearnerQuizView({
                                 chatMessage.alternate_solutions = contentObj.alternate_solutions;
                             }
 
+                            // Extract code_xray if available (for coding questions)
+                            if (contentObj && contentObj.code_xray) {
+                                chatMessage.code_xray = contentObj.code_xray;
+                            }
+
                             // Extract is_correct if available
                             if (contentObj && contentObj.is_correct !== undefined) {
                                 chatMessage.is_correct = contentObj.is_correct;
@@ -702,7 +711,8 @@ export default function LearnerQuizView({
                 feedback: aiResponse.feedback,
                 is_correct: aiResponse.is_correct,
                 code_quality: aiResponse.code_quality,
-                alternate_solutions: aiResponse.alternate_solutions || []
+                alternate_solutions: aiResponse.alternate_solutions || [],
+                code_xray: aiResponse.code_xray || []
             };
         } else {
             // For chat type or any other type, just include feedback
@@ -1140,6 +1150,24 @@ export default function LearnerQuizView({
                                             initialAiMessage.alternate_solutions = data.alternate_solutions;
                                         }
 
+                                        // Handle code_xray when available (for coding questions)
+                                        if (data.code_xray) {
+                                            initialAiMessage.code_xray = data.code_xray;
+                                        }
+
+                                        // Handle breakthrough_moment when available
+                                        if (data.breakthrough_moment) {
+                                            initialAiMessage.breakthrough_moment = data.breakthrough_moment;
+                                        }
+
+                                        // Handle wrong_answer_type and concept_score (short-answer objective)
+                                        if (data.wrong_answer_type) {
+                                            initialAiMessage.wrong_answer_type = data.wrong_answer_type;
+                                        }
+                                        if (data.concept_score !== undefined && data.concept_score !== null) {
+                                            initialAiMessage.concept_score = data.concept_score;
+                                        }
+
                                         // Handle scorecard data when available
                                         if (data.scorecard) {
                                             // Convert scorecard dict to list format
@@ -1198,7 +1226,11 @@ export default function LearnerQuizView({
                                             scorecard: completeScorecard,
                                             mini_lesson: initialAiMessage.mini_lesson,
                                             code_quality: initialAiMessage.code_quality,
-                                            alternate_solutions: initialAiMessage.alternate_solutions
+                                            alternate_solutions: initialAiMessage.alternate_solutions,
+                                            code_xray: initialAiMessage.code_xray,
+                                            breakthrough_moment: initialAiMessage.breakthrough_moment,
+                                            wrong_answer_type: initialAiMessage.wrong_answer_type,
+                                            concept_score: initialAiMessage.concept_score,
                                         };
                                     }
 
@@ -1241,7 +1273,8 @@ export default function LearnerQuizView({
                                             ...currentHistory[aiMessageIndex],
                                             scorecard: codeQualityScorecard,
                                             code_quality: initialAiMessage.code_quality,
-                                            alternate_solutions: initialAiMessage.alternate_solutions
+                                            alternate_solutions: initialAiMessage.alternate_solutions,
+                                            code_xray: initialAiMessage.code_xray
                                         };
                                     }
 
@@ -1312,7 +1345,10 @@ export default function LearnerQuizView({
                                 const aiResponse: AIResponse = {
                                     feedback: accumulatedFeedback,
                                     is_correct: isCorrect,
-                                    scorecard: completeScorecard
+                                    scorecard: completeScorecard,
+                                    code_quality: initialAiMessage.code_quality,
+                                    alternate_solutions: initialAiMessage.alternate_solutions,
+                                    code_xray: initialAiMessage.code_xray
                                 };
                                 storeChatHistory(currentQuestionId, userMessage, aiResponse);
                             }
@@ -1585,6 +1621,9 @@ export default function LearnerQuizView({
 
     const handleBackToChat = () => {
         setIsViewingScorecard(false);
+        // Explicitly set isViewingCode to false to ensure we return to chat
+        setCodeViewState(prev => ({ ...prev, isViewingCode: false }));
+        chatViewRef.current?.showChat();
 
         // Focus the input field when returning to chat if appropriate
         setTimeout(() => {
@@ -1596,7 +1635,14 @@ export default function LearnerQuizView({
             if (chatContainerRef.current) {
                 chatContainerRef.current.scrollTop = chatScrollPosition;
             }
-        }, 0);
+        }, 100);
+    };
+
+    const handleTryAgain = () => {
+        setIsViewingScorecard(false);
+        // If it's a coding question, we want to go back to the code view
+        const isCode = validQuestions[currentQuestionIndex]?.config?.inputType === 'code';
+        setCodeViewState(prev => ({ ...prev, isViewingCode: isCode }));
     };
 
     // Function to handle retrying the last user message
@@ -2222,6 +2268,7 @@ export default function LearnerQuizView({
                         <ScorecardView
                             activeScorecard={activeScorecard}
                             handleBackToChat={handleBackToChat}
+                            handleTryAgain={handleTryAgain}
                             lastUserMessage={getLastUserMessage as ChatMessage | null}
                             allAttempts={allAttemptsData[validQuestions[currentQuestionIndex]?.id]}
                             previousAnswerText={(() => {
@@ -2244,6 +2291,7 @@ export default function LearnerQuizView({
                     ) : (
                         /* Use the ChatView component */
                         <ChatView
+                            key={`chat-view-${validQuestions[currentQuestionIndex]?.id}`}
                             currentChatHistory={currentChatHistory as ChatMessage[]}
                             isAiResponding={isAiResponding}
                             showPreparingReport={showPreparingReport}
@@ -2262,7 +2310,7 @@ export default function LearnerQuizView({
                             currentQuestionId={validQuestions[currentQuestionIndex]?.id}
                             handleRetry={handleRetry}
                             onCodeStateChange={handleCodeStateChange}
-                            initialIsViewingCode={isCodeQuestion}
+                            initialIsViewingCode={codeViewState.isViewingCode}
                             showLearnerView={showLearnerView}
                             onShowLearnerViewChange={setShowLearnerView}
                             isAdminView={isAdminView}
@@ -2281,8 +2329,20 @@ export default function LearnerQuizView({
                             output={codeViewState.output}
                             isWebPreview={codeViewState.hasWebLanguages}
                             executionTime={codeViewState.executionTime}
+                            codeXray={(() => {
+                                const qId = validQuestions[currentQuestionIndex]?.id;
+                                const history = chatHistories[qId] || [];
+                                const aiMessages = [...history].filter(m => m.sender === 'ai');
+                                return aiMessages.reverse().find(m => m.code_xray?.length)?.code_xray;
+                            })()}
+                            codeXraySource={(() => {
+                                const qId = validQuestions[currentQuestionIndex]?.id;
+                                const history = chatHistories[qId] || [];
+                                const codeMessages = [...history].filter(m => m.sender === 'user' && m.messageType === 'code');
+                                return codeMessages.length ? codeMessages[codeMessages.length - 1].content : undefined;
+                            })()}
+                            codeXrayLanguage={validQuestions[currentQuestionIndex]?.config?.codingLanguages?.[0]}
                             onClear={() => {
-                                // Clear the code output in the codeViewState
                                 setCodeViewState(prev => ({
                                     ...prev,
                                     previewContent: '',

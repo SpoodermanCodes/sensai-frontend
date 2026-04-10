@@ -58,6 +58,7 @@ interface ChatViewProps {
 
 export interface ChatViewHandle {
     toggleCodeView: () => void;
+    showChat: () => void;
 }
 
 const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
@@ -92,6 +93,9 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
 
     // Add ref for CodeEditorView
     const codeEditorRef = useRef<CodeEditorViewHandle>(null);
+
+    // Tracks when user explicitly navigated back to chat (prevents effect from re-enabling code view)
+    const forceChatRef = useRef(false);
 
     // Add state for code editor toggle and preview
     const [isViewingCode, setIsViewingCode] = useState(initialIsViewingCode);
@@ -138,6 +142,9 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
 
     // Update view state when question config changes
     useEffect(() => {
+        // If user explicitly navigated back to chat from scorecard or if the parent 
+        // explicitly requested initial chat view, don't override back to code view
+        if (forceChatRef.current) return;
         // Don't set viewing code in viewOnly mode
         if (isCodingQuestion && !viewOnly) {
             // For completed exam questions, always show chat view to see the confirmation
@@ -153,7 +160,12 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
 
     useImperativeHandle(ref, () => ({
         toggleCodeView: () => {
+            forceChatRef.current = false;
             setIsViewingCode(prev => !prev);
+        },
+        showChat: () => {
+            forceChatRef.current = true;
+            setIsViewingCode(false);
         }
     }));
 
@@ -955,14 +967,14 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                         <div className="code-toggle-switch">
                             <div
                                 className={`code-toggle-option ${!isViewingCode ? 'active' : ''}`}
-                                onClick={() => setIsViewingCode(false)}
+                                onClick={() => { forceChatRef.current = false; setIsViewingCode(false); }}
                             >
                                 <MessageCircle size={16} className="mr-1" />
                                 <span>Chat</span>
                             </div>
                             <div
                                 className={`code-toggle-option ${isViewingCode ? 'active' : ''}`}
-                                onClick={() => setIsViewingCode(true)}
+                                onClick={() => { forceChatRef.current = false; setIsViewingCode(true); }}
                             >
                                 <Code size={16} className="mr-1" />
                                 <span>Code</span>

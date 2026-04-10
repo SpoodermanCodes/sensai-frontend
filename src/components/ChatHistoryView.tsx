@@ -3,11 +3,12 @@ import { ChatMessage, ScorecardItem } from '../types/quiz';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArrowDownToLine } from 'lucide-react';
+import CodeXRay from './CodeXRay';
 
 // Code message display component
 const CodeMessageDisplay = ({ code, language }: { code: string, language?: string }) => {
     // Check if the code contains language headers (e.g., "// JAVASCRIPT", "// HTML", etc.)
-    const hasLanguageHeaders = code.includes('// ') && code.includes('\n');
+    const hasLanguageHeaders = /^\s*\/\/ [A-Z]+\s*$/m.test(code) && code.includes('\n');
 
     if (hasLanguageHeaders) {
         // Split the code by language sections
@@ -303,8 +304,12 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                     className="h-full overflow-y-auto w-full hide-scrollbar pb-8 bg-white/60 dark:bg-transparent"
                 >
                 <div className="flex flex-col space-y-6 px-2">
-                    {chatHistory.map((message, index) => (
-                        <div key={message.id}>
+                    {chatHistory.map((message, index) => {
+                        const nextAiXrayLen = message.sender === 'user' && message.messageType === 'code'
+                            ? (chatHistory.slice(index + 1).find(m => m.sender === 'ai')?.code_xray?.length ?? 0)
+                            : 0;
+                        return (
+                        <div key={message.id + nextAiXrayLen}>
                             {(() => {
                                 const currentDate = toSafeDate((message as any).timestamp);
                                 if (!currentDate) return null;
@@ -421,15 +426,36 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                     />
                                                 </div>
                                             ) : message.messageType === 'code' ? (
-                                                <CodeMessageDisplay
-                                                    code={message.content}
-                                                    language={
-                                                        Array.isArray(currentQuestionConfig?.codingLanguages) &&
-                                                            currentQuestionConfig?.codingLanguages.length > 0
-                                                            ? currentQuestionConfig?.codingLanguages[0]
-                                                            : undefined
-                                                    }
-                                                />
+                                                <>
+                                                    <CodeMessageDisplay
+                                                        code={message.content}
+                                                        language={
+                                                            Array.isArray(currentQuestionConfig?.codingLanguages) &&
+                                                                currentQuestionConfig?.codingLanguages.length > 0
+                                                                ? currentQuestionConfig?.codingLanguages[0]
+                                                                : undefined
+                                                        }
+                                                    />
+                                                    {/* Code X-Ray: look for annotations on the AI reply that follows this code message */}
+                                                    {(() => {
+                                                        const nextAiMsg = chatHistory.slice(index + 1).find(m => m.sender === 'ai');
+                                                        if (!nextAiMsg?.code_xray?.length) return null;
+                                                        return (
+                                                            <div className="mt-2">
+                                                                <CodeXRay
+                                                                    code={message.content}
+                                                                    annotations={nextAiMsg.code_xray}
+                                                                    language={
+                                                                        Array.isArray(currentQuestionConfig?.codingLanguages) &&
+                                                                            currentQuestionConfig?.codingLanguages.length > 0
+                                                                            ? currentQuestionConfig?.codingLanguages[0]
+                                                                            : undefined
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </>
                                             ) : (
                                                 <div>
                                                     {message.sender === 'ai' ? (
@@ -446,6 +472,37 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                         </pre>
                                                     )}
 
+                                                    {/* Concept Score Bar — for short-answer objective questions */}
+                                                    {message.sender === 'ai' && message.concept_score !== undefined && message.concept_score !== null && (
+                                                        <div className="mt-3">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    {message.wrong_answer_type === 'terminology_confusion' && '🔤 Terminology confusion'}
+                                                                    {message.wrong_answer_type === 'adjacent_concept' && '🔀 Adjacent concept'}
+                                                                    {message.wrong_answer_type === 'completely_wrong' && '❌ Different concept'}
+                                                                    {message.wrong_answer_type === 'format_error' && '📐 Format error'}
+                                                                    {!message.wrong_answer_type && '✅ Concept proximity'}
+                                                                </span>
+                                                                <span className="text-xs font-medium" style={{
+                                                                    color: message.concept_score >= 80 ? '#22c55e' : message.concept_score >= 50 ? '#f59e0b' : '#ef4444'
+                                                                }}>{message.concept_score}%</span>
+                                                            </div>
+                                                            <div className="w-full h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all duration-500"
+                                                                    style={{
+                                                                        width: `${message.concept_score}%`,
+                                                                        background: message.concept_score >= 80
+                                                                            ? '#22c55e'
+                                                                            : message.concept_score >= 50
+                                                                            ? `linear-gradient(to right, #ef4444, #f59e0b)`
+                                                                            : '#ef4444'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {message.mini_lesson && (
                                                         <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40">
                                                             <div className="flex items-start gap-2">
@@ -454,6 +511,20 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                     <div className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Concept Refresher</div>
                                                                     <div className="text-sm text-amber-900 dark:text-amber-200">
                                                                         {message.mini_lesson}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {message.breakthrough_moment && (
+                                                        <div className="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800/40">
+                                                            <div className="flex items-start gap-2">
+                                                                <span className="text-lg mt-0.5">🎯</span>
+                                                                <div className="flex-1">
+                                                                    <div className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mb-1">Breakthrough</div>
+                                                                    <div className="text-sm text-emerald-900 dark:text-emerald-200">
+                                                                        {message.breakthrough_moment}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -542,7 +613,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                 })()}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
 
                     {/* Show "Preparing report" as an AI message */}
                     {showPreparingReport && (

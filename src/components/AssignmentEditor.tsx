@@ -21,7 +21,7 @@ import PublishConfirmationDialog from './PublishConfirmationDialog';
 import { useThemePreference } from "@/lib/hooks/useThemePreference";
 
 // Submission type options filtered from answerTypeOptions
-const submissionTypeOptions = answerTypeOptions.filter(opt => opt.value === 'text' || opt.value === 'audio');
+const submissionTypeOptions = answerTypeOptions.filter(opt => opt.value === 'text' || opt.value === 'audio' || opt.value === 'code');
 
 export interface AssignmentEditorHandle {
     hasChanges: () => boolean;

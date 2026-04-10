@@ -9,6 +9,7 @@ import AlternateSolutions from './AlternateSolutions';
 interface ScorecardViewProps {
     activeScorecard: ScorecardItem[];
     handleBackToChat: () => void;
+    handleTryAgain?: () => void;
     lastUserMessage: ChatMessage | null;
     allAttempts?: AttemptData[];
     previousAnswerText?: string;
@@ -19,6 +20,7 @@ interface ScorecardViewProps {
 const ScorecardView: React.FC<ScorecardViewProps> = ({
     activeScorecard,
     handleBackToChat,
+    handleTryAgain,
     lastUserMessage,
     allAttempts,
     previousAnswerText,
@@ -32,11 +34,14 @@ const ScorecardView: React.FC<ScorecardViewProps> = ({
         setIsTextExpanded(!isTextExpanded);
     };
     
-    // Check if we have multiple attempts for comparison (need at least 2 total)
-    const hasMultipleAttempts = allAttempts && allAttempts.length >= 2;
+    // Check if we have multiple attempts for comparison (need at least 3 total for graph)
+    const hasMultipleAttempts = allAttempts && allAttempts.length >= 3;
+    
+    // Check if we have at least 2 attempts for comparison (need at least 2 total)
+    const hasComparisonAttempts = allAttempts && allAttempts.length >= 2;
     
     // Get previous attempt data (second to last)
-    const previousAttempt = hasMultipleAttempts ? allAttempts[allAttempts.length - 2] : null;
+    const previousAttempt = hasComparisonAttempts ? allAttempts[allAttempts.length - 2] : null;
     
     // Show comparison when we have 2 or more attempts (1+ previous attempts)
     const showComparison = allAttempts && allAttempts.length > 1;
@@ -134,7 +139,7 @@ const ScorecardView: React.FC<ScorecardViewProps> = ({
                 {/* Try Again Button */}
                 <div className="mt-6 flex justify-center">
                     <button
-                        onClick={handleBackToChat}
+                        onClick={handleTryAgain || handleBackToChat}
                         className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-700 dark:hover:bg-purple-800 px-6 py-3 rounded-full text-sm font-medium transition-colors cursor-pointer shadow-sm"
                         type="button"
                     >

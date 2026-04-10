@@ -4,6 +4,8 @@ import type { editor as MonacoEditor, IDisposable, IKeyboardEvent } from 'monaco
 import { Play, Send, Terminal, ArrowLeft, X } from 'lucide-react';
 import Toast from './Toast';
 import { useThemePreference } from '@/lib/hooks/useThemePreference';
+import CodeXRay from './CodeXRay';
+import type { CodeAnnotation } from '../types/quiz';
 
 interface CodeEditorViewProps {
     initialCode?: Record<string, string>;
@@ -29,6 +31,9 @@ export interface CodePreviewProps {
     onClear?: () => void;
     onBack?: () => void;
     isMobileView?: boolean;
+    codeXray?: CodeAnnotation[];
+    codeXraySource?: string;
+    codeXrayLanguage?: string;
 }
 
 export const CodePreview: React.FC<CodePreviewProps> = ({
@@ -40,6 +45,9 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
     onClear,
     onBack,
     isMobileView = false,
+    codeXray,
+    codeXraySource,
+    codeXrayLanguage,
 }) => {
     const { isDarkMode } = useThemePreference();
     const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -118,10 +126,29 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
     )}
     ` : previewContent;
 
+    const hasXray = codeXray && codeXray.length > 0 && codeXraySource;
+
     return (
         <div
             className={`flex-1 flex flex-col overflow-hidden h-full ${isMobileView ? 'mobile-preview-container' : ''} bg-white dark:bg-[#111111] text-slate-900 dark:text-white`}
         >
+            {/* Code X-Ray panel — top section, only when annotations exist */}
+            {hasXray && (
+                <div className="flex-none overflow-auto border-b border-gray-200 dark:border-[#2D2D2D]" style={{ maxHeight: '50%' }}>
+                    <div className="px-3 py-1.5 bg-gray-100 dark:bg-[#222222] text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-transparent">
+                        🔬 Code X-Ray
+                    </div>
+                    <div className="overflow-auto">
+                        <CodeXRay
+                            code={codeXraySource!}
+                            annotations={codeXray!}
+                            language={codeXrayLanguage}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Output / Preview panel */}
             <div className="px-4 font-medium flex justify-between items-center bg-gray-100 dark:bg-[#222222] text-gray-900 dark:text-white border-b border-gray-200 dark:border-transparent">
                 <div className="flex items-center">
                     <span className="text-sm py-2">{isWebPreview ? 'Preview' : 'Output'}</span>
@@ -1378,10 +1405,9 @@ const CodeEditorView = forwardRef<CodeEditorViewHandle, CodeEditorViewProps>(({
                 keydownDisposableRef.current = null;
             }
 
-            // Best-effort cleanup to avoid Monaco scheduling renders against a disposed DOM node.
-            try {
-                editorRef.current?.dispose?.();
-            } catch { }
+            // Best-effort cleanup: just null the ref; do NOT call dispose() on the
+            // editor instance — Monaco editors don't expose dispose() and calling it
+            // throws "Canceled" errors during Turbopack Fast Refresh.
             editorRef.current = null;
         };
     }, [disableCopyPaste, lastCopiedCode]);

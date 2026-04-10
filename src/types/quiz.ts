@@ -126,6 +126,10 @@ export interface ChatMessage {
     fileUuid?: string; // UUID for file messages
     fileName?: string; // Filename for file messages
     mini_lesson?: string; // Mini lesson for when student is stuck on same criterion
+    code_xray?: CodeAnnotation[]; // Inline code annotations
+    breakthrough_moment?: string; // Aha moment when student finally gets it after multiple attempts
+    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error'; // Error classification for short-answer
+    concept_score?: number; // 0-100 conceptual proximity score
 }   
 
 
@@ -133,6 +137,13 @@ export interface AlternateSolution {
     approach: string;
     code: string;
     explanation: string;
+}
+
+export interface CodeAnnotation {
+    line: number;
+    type: 'issue' | 'suggestion' | 'explanation';
+    comment: string;
+    hint?: string;
 }
 
 // Define scorecard item structure
@@ -153,4 +164,6 @@ export interface AIResponse {
     scorecard?: ScorecardItem[];
     code_quality?: Record<string, any>;
     alternate_solutions?: AlternateSolution[];
+    code_xray?: CodeAnnotation[];
+    breakthrough_moment?: string;
 }
