@@ -883,6 +883,24 @@ export default function LearnerQuizView({
             // Prepare the request body based on whether this is a teacher testing or a real learner
             let requestBody;
 
+            // Define specialized instructions for objective questions to reinforce the "Four Wrong-Answer Types"
+            const objectiveInstruction = validQuestions[currentQuestionIndex]?.config?.questionType === 'objective' 
+                ? `
+Objective Feedback Rules for Short-Answer:
+Whenever the learner provides a wrong answer, categorize it into one of these four types and output the exact type key in your 'wrong_answer_type' JSON field.
+
+1. terminology_confusion: Learner knows the concept but used the wrong word (e.g., "stack" instead of "queue"). 
+   Feedback: Give a Socratic hint about the definition. "You're thinking of the right data structure where first-in means first-out. What's that one called?"
+2. adjacent_concept: Answer is related but different (e.g., "RAM" instead of "cache"). 
+   Feedback: Acknowledge the relationship and give a Socratic comparison. "RAM is close—both are fast. But there's something even faster between RAM and CPU. What is it?"
+3. completely_wrong: Answer has no conceptual connection (e.g., "recursion" instead of "polymorphism"). 
+   Feedback: Trigger a mini-lesson immediately. Do not hint. They are conceptually far.
+4. format_error: Right idea, wrong form/unit (e.g., "0.5" instead of "50%"). 
+   Feedback: Acknowledge the value but flag the form. "Right value—but check what unit the question is asking for."
+
+Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximity.` 
+                : "";
+
             if (isTestMode) {
                 // In teacher testing mode, send chat_history and question data
                 // Format the chat history for the current question
@@ -905,6 +923,7 @@ export default function LearnerQuizView({
                     ...(responseType === 'audio' && { response_type: "audio" }),
                     ...(responseType === 'code' && { response_type: "code" }),
                     chat_history: formattedChatHistory,
+                    system_instruction: objectiveInstruction,
                     question: {
                         "blocks": validQuestions[currentQuestionIndex].content,
                         "response_type": validQuestions[currentQuestionIndex].config.responseType,
@@ -914,7 +933,8 @@ export default function LearnerQuizView({
                         "input_type": validQuestions[currentQuestionIndex].config.inputType,
                         "scorecard_id": scorecardId,
                         "coding_languages": validQuestions[currentQuestionIndex].config.codingLanguages,
-                        "context": getKnowledgeBaseContent(validQuestions[currentQuestionIndex].config as QuizQuestionConfig)
+                        "context": getKnowledgeBaseContent(validQuestions[currentQuestionIndex].config as QuizQuestionConfig),
+                        "system_instruction": objectiveInstruction
                     },
                     user_id: userId,
                     user_email: user?.email,
@@ -927,6 +947,7 @@ export default function LearnerQuizView({
                     user_response: responseType === 'audio' ? audioData : responseContent,
                     response_type: responseType,
                     question_id: currentQuestionId,
+                    system_instruction: objectiveInstruction,
                     user_id: userId,
                     user_email: user?.email,
                     task_id: taskId,
@@ -1265,6 +1286,52 @@ export default function LearnerQuizView({
                                     validQuestions[currentQuestionIndex]?.config?.responseType !== 'exam') {
                                     handleViewScorecard(completeScorecard);
                                 }
+                            } else if (
+                                // Non-coding objective: build a concept-score scorecard
+                                validQuestions[currentQuestionIndex]?.config?.questionType === 'objective' &&
+                                validQuestions[currentQuestionIndex]?.config?.inputType !== 'code' &&
+                                initialAiMessage.concept_score !== undefined && initialAiMessage.concept_score !== null
+                            ) {
+                                const wrongTypeLabels: Record<string, string> = {
+                                    terminology_confusion: 'Terminology',
+                                    adjacent_concept: 'Adjacent Concept',
+                                    completely_wrong: 'Concept Understanding',
+                                    format_error: 'Format / Units',
+                                };
+                                const category = initialAiMessage.wrong_answer_type
+                                    ? wrongTypeLabels[initialAiMessage.wrong_answer_type] || 'Concept Proximity'
+                                    : 'Concept Proximity';
+                                const objectiveScorecard: ScorecardItem[] = [{
+                                    category,
+                                    feedback: {
+                                        correct: isCorrect ? 'Correct answer.' : '',
+                                        wrong: !isCorrect && initialAiMessage.wrong_answer_type
+                                            ? `Error type: ${initialAiMessage.wrong_answer_type.replace(/_/g, ' ')}`
+                                            : ''
+                                    },
+                                    score: initialAiMessage.concept_score,
+                                    max_score: 100,
+                                    pass_score: 80,
+                                }];
+
+                                setChatHistories(prev => {
+                                    const currentHistory = [...(prev[currentQuestionId] || [])];
+                                    const aiMessageIndex = currentHistory.findIndex(msg => msg.id === aiMessageId);
+                                    if (aiMessageIndex !== -1) {
+                                        currentHistory[aiMessageIndex] = {
+                                            ...currentHistory[aiMessageIndex],
+                                            scorecard: objectiveScorecard,
+                                            wrong_answer_type: initialAiMessage.wrong_answer_type,
+                                            concept_score: initialAiMessage.concept_score,
+                                            mini_lesson: initialAiMessage.mini_lesson,
+                                            breakthrough_moment: initialAiMessage.breakthrough_moment,
+                                        };
+                                    }
+                                    return { ...prev, [currentQuestionId]: currentHistory };
+                                });
+
+                                // Removed automatic scorecard view switch to maintain chat flow for objective questions
+
                             } else if (initialAiMessage.code_quality && Object.keys(initialAiMessage.code_quality).length > 0) {
                                 // Handle code_quality for coding questions
                                 const codeQualityScorecard = Object.entries(initialAiMessage.code_quality).map(([category, data]: [string, any]) => ({
@@ -1365,7 +1432,11 @@ export default function LearnerQuizView({
                                     scorecard: completeScorecard,
                                     code_quality: initialAiMessage.code_quality,
                                     alternate_solutions: initialAiMessage.alternate_solutions,
-                                    code_xray: initialAiMessage.code_xray
+                                    code_xray: initialAiMessage.code_xray,
+                                    wrong_answer_type: initialAiMessage.wrong_answer_type,
+                                    concept_score: initialAiMessage.concept_score,
+                                    breakthrough_moment: initialAiMessage.breakthrough_moment,
+                                    mini_lesson: initialAiMessage.mini_lesson,
                                 };
                                 storeChatHistory(currentQuestionId, userMessage, aiResponse);
                             }

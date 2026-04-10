@@ -9,9 +9,9 @@ import KnowledgeBaseEditor from "./KnowledgeBaseEditor";
 import LearnerAssignmentView from "./LearnerAssignmentView";
 import ScorecardManager, { ScorecardManagerHandle } from "./ScorecardManager";
 import EvaluationCriteriaEditor from "./EvaluationCriteriaEditor";
-import { BookOpen, ClipboardCheck, HelpCircle } from "lucide-react";
+import { BookOpen, ClipboardCheck, HelpCircle, Sparkles } from "lucide-react";
 import { BlockList, RenderConfig } from "@udus/notion-renderer/components";
-import { hasBlocksContent } from "@/lib/utils/blockUtils";
+import { extractTextFromBlocks, hasBlocksContent } from "@/lib/utils/blockUtils";
 import { handleIntegrationPageSelection, handleIntegrationPageRemoval } from "@/lib/utils/integrationUtils";
 import { useAuth } from "@/lib/auth";
 import { validateScorecardCriteria } from "@/lib/utils/scorecardValidation";
@@ -21,7 +21,9 @@ import PublishConfirmationDialog from './PublishConfirmationDialog';
 import { useThemePreference } from "@/lib/hooks/useThemePreference";
 
 // Submission type options filtered from answerTypeOptions
-const submissionTypeOptions = answerTypeOptions.filter(opt => opt.value === 'text' || opt.value === 'audio' || opt.value === 'code');
+// Submission type options limited to Text and Code for Assignments
+const submissionTypeOptions = answerTypeOptions.filter(opt => opt.value === 'text' || opt.value === 'code');
+
 
 export interface AssignmentEditorHandle {
     hasChanges: () => boolean;
@@ -103,6 +105,142 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
 
     // Dirty tracking
     const [dirty, setDirty] = useState(false);
+
+    // AI generation state
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generateError, setGenerateError] = useState<string | null>(null);
+    const [generatedScorecardKey, setGeneratedScorecardKey] = useState(0);
+
+    const handleGenerateFromMaterial = useCallback(async () => {
+        setIsGenerating(true);
+        setGenerateError(null);
+        try {
+            // 1. Fetch current task to get milestone_id
+            const taskRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/${taskId}`);
+            if (!taskRes.ok) throw new Error('Failed to fetch task details');
+            const taskData = await taskRes.json();
+            const milestoneId = taskData.milestone_id;
+
+            let moduleMaterialText = "";
+
+            // 2. Fetch milestone to get all learning materials if available
+            if (milestoneId) {
+                const milestoneRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/milestones/${milestoneId}`);
+                if (milestoneRes.ok) {
+                    const milestoneData = await milestoneRes.json();
+                    
+                    // Filter for learning materials in the same module
+                    // Robust check for different type name variations
+                    const materials = (milestoneData.tasks || []).filter((t: any) => 
+                        t.id !== taskId && // Don't analyze self
+                        (t.type === 'learning_material' || t.type === 'material' || t.task_type === 'learning_material')
+                    );
+                    
+                    console.log(`Found ${materials.length} sibling learning materials in module ${milestoneId}`);
+                    
+                    if (materials.length > 0) {
+                        const contentPromises = materials.map((m: any) => 
+                            fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/learning_materials/${m.id}`)
+                                .then(r => r.ok ? r.json() : null)
+                                .catch(() => null)
+                        );
+                        
+                        const contents = await Promise.all(contentPromises);
+                        moduleMaterialText = contents
+                            .filter(c => c && c.blocks && extractTextFromBlocks(c.blocks).trim().length > 0)
+                            .map(c => extractTextFromBlocks(c.blocks))
+                            .join("\n\n---\n\n");
+                    }
+                }
+            }
+
+            // 3. Aggregate content from module materials, knowledge base, and manual resources
+            const manualResources = extractTextFromBlocks([...knowledgeBaseBlocks, ...integrationBlocks]).trim();
+            const problemText = extractTextFromBlocks(problemBlocks).trim();
+            
+            // Prioritize module materials, then manual resources, then problem statement
+            const referenceMaterial = moduleMaterialText.trim() || manualResources || problemText;
+            
+            if (!referenceMaterial) {
+                onValidationError?.('No Material Found', 'Please add some learning materials to this module or manual resources first so the AI can analyze them.', '📚');
+                setIsGenerating(false);
+                return;
+            }
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/ai/generate-assessment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reference_material: referenceMaterial,
+                    assessment_type: submissionType.value,
+                    course_id: courseId,
+                    generate_problem_statement: true // Always generate/improve problem statement based on module analysis
+                }),
+            });
+            if (!res.ok) throw new Error('Generation failed');
+            const data = await res.json();
+            
+            // Update problem statement
+            if (data.problem_statement) {
+                setProblemBlocks(data.problem_statement);
+            }
+
+            // Auto-populate scorecard from rubric (mapping from backend format)
+            if (data.scorecard && data.scorecard.criteria) {
+                const generatedScorecard: ScorecardTemplate = {
+                    id: `generated-${Date.now()}`,
+                    name: data.scorecard.title || 'AI Generated Rubric',
+                    new: true,
+                    criteria: data.scorecard.criteria.map((c: any) => ({
+                        name: c.name,
+                        description: c.description,
+                        maxScore: c.max_score || 4,
+                        minScore: c.min_score || 1,
+                        passScore: c.pass_score || 3,
+                    })),
+                };
+                setScorecardData(generatedScorecard);
+                
+                // Update score range from first criterion
+                if (data.scorecard.criteria.length > 0) {
+                    const first = data.scorecard.criteria[0];
+                    setScoreRange({ 
+                        min_score: first.min_score || 1, 
+                        max_score: first.max_score || 4, 
+                        pass_score: first.pass_score || 3 
+                    });
+                }
+            } else if (data.questions?.[0]?.rubric) {
+                // Fallback for older backend format
+                const q = data.questions[0];
+                const generatedScorecard: ScorecardTemplate = {
+                    id: `generated-${Date.now()}`,
+                    name: 'AI Generated Rubric',
+                    new: true,
+                    criteria: q.rubric.map((r: any) => ({
+                        name: r.name,
+                        description: `${r.description}\n\nStrong: ${r.strong_response}\nWeak: ${r.weak_response}`,
+                        maxScore: r.max_score,
+                        minScore: r.min_score,
+                        passScore: r.pass_score,
+                    })),
+                };
+                setScorecardData(generatedScorecard);
+                const first = q.rubric[0];
+                setScoreRange({ min_score: first.min_score, max_score: first.max_score, pass_score: first.pass_score });
+            }
+
+            setActiveTab('evaluation');
+            setDirty(true);
+            setGeneratedScorecardKey(k => k + 1);
+        } catch (error) {
+            console.error('Generation error:', error);
+            setGenerateError('Generation failed. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [taskId, problemBlocks, knowledgeBaseBlocks, integrationBlocks, submissionType, courseId, onValidationError]);
+
 
     // Loading state for fetching assignment data
     const [isLoadingAssignment, setIsLoadingAssignment] = useState(true);
@@ -601,8 +739,8 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                         </div>
                     </div>
 
-                    {/* Tab navigation */}
-                    <div className="flex justify-center">
+                    {/* Tab navigation & Global Actions */}
+                    <div className="flex justify-between items-center px-6">
                         <div className="inline-flex rounded-lg p-1 bg-gray-200 dark:bg-[#222222]">
                             <button
                                 className={`flex items-center px-4 py-2 rounded-md text-sm cursor-pointer ${activeTab === 'problem' 
@@ -611,7 +749,7 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                                 onClick={() => setActiveTab('problem')}
                             >
                                 <HelpCircle size={16} className="mr-2" />
-                                Problem statement
+                                Task brief
                             </button>
                             <button
                                 className={`flex items-center px-4 py-2 rounded-md text-sm cursor-pointer ${activeTab === 'evaluation' 
@@ -632,6 +770,28 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                                 AI training resources
                             </button>
                         </div>
+
+                        {/* Global AI Action Area */}
+                        {!readOnly && (
+                            <div className="flex items-center">
+                                <button
+                                    onClick={handleGenerateFromMaterial}
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-2 px-4 py-2 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md font-medium"
+                                >
+                                    {isGenerating ? (
+                                        <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analyzing module...</>
+                                    ) : (
+                                        <><Sparkles size={13} /> Analyze module & generate</>
+                                    )}
+                                </button>
+                                {generateError && (
+                                    <div className="ml-2 px-2 py-1 rounded bg-red-100 text-[10px] text-red-600 animate-pulse">
+                                        Error!
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Tab content */}
@@ -710,11 +870,13 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                                 {/* Scorecard Section */}
                                 <div className={`h-full m-1 ${highlightedField === 'scorecard' ? 'outline-2 outline-red-400 shadow-md shadow-red-900/50 animate-pulse rounded-lg p-2 bg-red-50 dark:bg-[#2D1E1E]' : ''}`}>
                                     <ScorecardManager
+                                        key={`scorecard-manager-${generatedScorecardKey}`}
                                         ref={scorecardManagerRef}
                                         schoolId={schoolId}
                                         readOnly={readOnly || isLoadingAssignment}
                                         onScorecardChange={handleScorecardChange}
                                         scorecardId={scorecardId}
+                                        initialScorecardData={scorecardData}
                                         className="scorecard-section"
                                         type="assignment"
                                     />

@@ -55,19 +55,19 @@ export const answerTypeOptions: DropdownOption[] = [
         "label": "Text",
         "value": "text",
         "color": "#2D6A4F",
-        "tooltip": "Learner types their answer"
+        "tooltip": "Essay, problem solving, or written response"
     },
     {
         "label": "Audio",
         "value": "audio",
         "color": "#9D4E4E",
-        "tooltip": "Learner records their answer"
+        "tooltip": "Voice recording (Quizzes only)"
     },
     {
         "label": "Code",
         "value": "code",
         "color": "#614A82",
-        "tooltip": "Learner writes code in a code editor"
+        "tooltip": "Software development or coding task"
     }
 ]; 
 

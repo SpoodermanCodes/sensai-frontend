@@ -685,7 +685,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                                     <textarea
                                                         id="no-border-textarea"
                                                         ref={textareaRef}
-                                                        placeholder={taskType === 'learning_material' ? "Type your question here" : "Type your answer here"}
+                                                        placeholder={taskType === 'learning_material' ? "Type your question here" : taskType === 'assignment' ? "Enter your submission here..." : "Type your answer here"}
                                                         className="ml-2 w-full bg-transparent auto-expanding-textarea text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-gray-500"
                                                         value={currentAnswer}
                                                         onChange={handleInputChange as any}

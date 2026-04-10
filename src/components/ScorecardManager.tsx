@@ -363,7 +363,7 @@ const ScorecardManager = forwardRef<ScorecardManagerHandle, ScorecardManagerProp
 
         try {
             // Prepare the scorecard data for the API
-            const scorecardPayload = {
+            const scorecardPayload: any = {
                 title: scorecardData.name,
                 criteria: scorecardData.criteria.map(criterion => ({
                     name: criterion.name,
@@ -374,9 +374,21 @@ const ScorecardManager = forwardRef<ScorecardManagerHandle, ScorecardManagerProp
                 }))
             };
 
-            // Make the API call to update the scorecard
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/scorecards/${scorecardData.id}`, {
-                method: 'PUT',
+            // If this is a generated ID that hasn't been saved yet, use POST to create it
+            const isGeneratedId = String(scorecardData.id).startsWith('generated-');
+            const url = isGeneratedId 
+                ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/scorecards/` 
+                : `${process.env.NEXT_PUBLIC_BACKEND_URL}/scorecards/${scorecardData.id}`;
+            const method = isGeneratedId ? 'POST' : 'PUT';
+            
+            // If POST, we need to include org_id
+            if (isGeneratedId && schoolId) {
+                scorecardPayload.org_id = schoolId;
+            }
+
+            // Make the API call
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -386,6 +398,20 @@ const ScorecardManager = forwardRef<ScorecardManagerHandle, ScorecardManagerProp
             if (!response.ok) {
                 throw new Error(`Failed to save scorecard: ${response.status}`);
             }
+
+            const savedData = await response.json();
+            const actualId = savedData.id;
+
+            // If it was a new creation, update the ID in our state
+            if (isGeneratedId) {
+                const updatedScorecard = { ...scorecardData, id: actualId, new: false };
+                setScorecardData(updatedScorecard);
+                if (onScorecardChange) {
+                    onScorecardChange(updatedScorecard);
+                }
+            }
+
+            // Create the new original data immediately
 
             // Create the new original data immediately
             const newOriginalData = {

@@ -486,6 +486,10 @@ export default function LearnerAssignmentView({
                 } catch { }
             }
 
+            // Lock input for examiner mode - disable further submissions until retry
+            setIsSubmitting(true);
+
+
             // Track if we've received any feedback
             let receivedAnyFeedback = false;
 
@@ -868,66 +872,8 @@ export default function LearnerAssignmentView({
         processUserResponse(currentAnswer, 'text');
     }, [currentAnswer, processUserResponse]);
 
-    const handleAudioSubmit = useCallback(async (audioBlob: Blob) => {
-        try {
-            // Convert the WebM audio blob to WAV format (8kHz)
-            const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            const wavBuffer = convertAudioBufferToWav(audioBuffer, 8000);
-            const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+    // Removed handleAudioSubmit and handleFileSubmit for standardized Text/Code assignments
 
-            // Convert the WAV blob to base64 for immediate local playback in chat
-            const reader = new FileReader();
-            reader.readAsDataURL(wavBlob);
-
-            reader.onloadend = async () => {
-                const base64Audio = reader.result as string;
-                const base64Data = base64Audio.split(',')[1];
-
-                processUserResponse('', 'audio', base64Data);
-            };
-        } catch {
-            console.error("Error processing audio submission");
-            setIsSubmitting(false);
-            setIsAiResponding(false);
-        }
-    }, [processUserResponse]);
-
-    const handleFileSubmit = async (file: File) => {
-        if (viewOnly) return;
-
-        try {
-            // Convert the file to base64 for presigned URL upload (similar to audio flow)
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-
-            reader.onloadend = async () => {
-                const base64File = reader.result as string;
-                const base64Data = base64File.split(',')[1];
-
-                // Pass fileData to processUserResponse so it uses the presigned URL flow
-                processUserResponse(file.name, 'file', undefined, undefined, base64Data);
-            };
-
-            reader.onerror = () => {
-                throw new Error('Failed to read file');
-            };
-        } catch (error) {
-            console.error('Error processing file upload:', error);
-            // Show error message to the user
-            const errorResponse: ChatMessageLocal = {
-                id: `ai-error-${Date.now()}`,
-                content: "There was an error while processing your file. Please try again.",
-                sender: 'ai',
-                timestamp: new Date(),
-                messageType: 'text',
-                audioData: undefined,
-                isError: true
-            };
-            setChatHistory(prev => [...prev, errorResponse]);
-        }
-    };
 
     const handleViewScorecard = useCallback((scorecard: ScorecardItem[]) => {
         setActiveScorecard(scorecard);
@@ -939,6 +885,17 @@ export default function LearnerAssignmentView({
     const handleBackToChat = useCallback(() => {
         setIsViewingScorecard(false);
     }, []);
+
+    const handleTryAgain = useCallback(() => {
+        setChatHistory([]); // Clear chat history for a fresh start
+        setIsSubmitting(false);
+        setIsAiResponding(false);
+        setIsViewingScorecard(false);
+        setEvaluationStatus("in_progress");
+        // Clear draft if needed, or keep it so they can edit? 
+        // User said "retry is allowed", keeping draft is better for UX.
+    }, []);
+
 
     const handleFileDownload = useCallback(async (fileUuid: string, fileName: string) => {
         try {
@@ -1156,7 +1113,7 @@ export default function LearnerAssignmentView({
                     {/* Header chip */}
                     <div className="flex items-center justify-center w-full mb-6">
                         <div className="px-3 py-1 rounded-full text-sm flex items-center bg-gray-100 text-gray-700 dark:bg-[#222222] dark:text-white">
-                            <span>Problem Statement</span>
+                            <span>Task brief</span>
                             {isCompleted && (
                                 <CheckCircle size={14} className="ml-2 flex-shrink-0 text-emerald-500 dark:text-green-500" />
                             )}
@@ -1207,8 +1164,10 @@ export default function LearnerAssignmentView({
                         <ScorecardView
                             activeScorecard={activeScorecard}
                             handleBackToChat={handleBackToChat}
-                            lastUserMessage={null}
+                            handleTryAgain={handleTryAgain}
+                            lastUserMessage={chatHistoryForView.find(m => m.sender === 'user') || null}
                         />
+
                     ) : (
                         /* Use the ChatView component */
                         <div className="flex-1 min-h-0">
@@ -1220,19 +1179,20 @@ export default function LearnerAssignmentView({
                                 isTestMode={isTestMode}
                                 taskType={'assignment'}
                                 currentQuestionConfig={currentQuestionConfig}
-                                isSubmitting={isSubmitting}
+                                // Lock input if already submitted and waiting or finished (Examiner mode)
+                                isSubmitting={isSubmitting || (chatHistory.length > 0 && chatHistory.some(m => m.sender === 'user'))}
                                 currentAnswer={currentAnswer}
                                 handleInputChange={handleInputChange}
                                 handleSubmitAnswer={() => handleSubmitAnswer()}
-                                handleAudioSubmit={handleAudioSubmit}
+                                handleAudioSubmit={() => {}} // Removed
                                 handleViewScorecard={handleViewScorecard}
-                                viewOnly={viewOnly || isCompleted}
+                                viewOnly={viewOnly || isCompleted || (chatHistory.length > 0 && chatHistory.some(m => m.sender === 'user'))}
                                 completedQuestionIds={{}}
                                 currentQuestionId={"assignment"}
                                 userId={userId}
-                                showUploadSection={submissionType !== 'code' && needsResubmission}
-                                onFileUploaded={handleFileSubmit}
-                                    onFileDownload={handleFileDownload}
+                                showUploadSection={false} // Removed file upload
+                                onFileUploaded={() => {}} // Removed
+                                onFileDownload={handleFileDownload}
                             />
                         </div>
                     )}

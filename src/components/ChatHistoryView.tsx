@@ -238,12 +238,12 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
     // Helper to determine if "View Report" button should be shown
     const shouldShowViewReport = (message: ChatMessage) => {
-        // Check if message is from AI and has scorecard data OR code_quality data
         return (
             message.sender === 'ai' &&
             (
                 (message.scorecard && message.scorecard.length > 0 && currentQuestionConfig?.questionType === 'subjective') ||
-                (message.code_quality && Object.keys(message.code_quality).length > 0 && currentQuestionConfig?.inputType === 'code')
+                (message.code_quality && Object.keys(message.code_quality).length > 0 && currentQuestionConfig?.inputType === 'code') ||
+                (message.concept_score !== undefined && message.concept_score !== null && currentQuestionConfig?.questionType === 'objective' && currentQuestionConfig?.inputType !== 'code')
             )
         );
     };
@@ -474,34 +474,32 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
                                                     {/* Concept Score Bar — for short-answer objective questions */}
                                                     {message.sender === 'ai' && message.concept_score !== undefined && message.concept_score !== null && (
-                                                        <div className="mt-3">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                                    {message.wrong_answer_type === 'terminology_confusion' && '🔤 Terminology confusion'}
-                                                                    {message.wrong_answer_type === 'adjacent_concept' && '🔀 Adjacent concept'}
-                                                                    {message.wrong_answer_type === 'completely_wrong' && '❌ Different concept'}
-                                                                    {message.wrong_answer_type === 'format_error' && '📐 Format error'}
-                                                                    {!message.wrong_answer_type && '✅ Concept proximity'}
+                                                        <div className="mt-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                                            <div className="flex items-center justify-between mb-1.5">
+                                                                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                                                                    {message.wrong_answer_type === 'terminology_confusion' && <><span>🔤</span> Terminology</>}
+                                                                    {message.wrong_answer_type === 'adjacent_concept' && <><span>🔀</span> Adjacent Concept</>}
+                                                                    {message.wrong_answer_type === 'completely_wrong' && <><span>❌</span> Understanding Gap</>}
+                                                                    {message.wrong_answer_type === 'format_error' && <><span>📐</span> Format / Units</>}
+                                                                    {!message.wrong_answer_type && <><span>✅</span> Concept Closeness</>}
                                                                 </span>
-                                                                <span className="text-xs font-medium" style={{
-                                                                    color: message.concept_score >= 80 ? '#22c55e' : message.concept_score >= 50 ? '#f59e0b' : '#ef4444'
-                                                                }}>{message.concept_score}%</span>
+                                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800" style={{
+                                                                    color: `hsl(${message.concept_score * 1.2}, 70%, 45%)`
+                                                                }}>{message.concept_score}% Closeness</span>
                                                             </div>
-                                                            <div className="w-full h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                            <div className="w-full h-1 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                                                 <div
-                                                                    className="h-full rounded-full transition-all duration-500"
+                                                                    className="h-full rounded-full transition-all duration-700 ease-out"
                                                                     style={{
                                                                         width: `${message.concept_score}%`,
-                                                                        background: message.concept_score >= 80
-                                                                            ? '#22c55e'
-                                                                            : message.concept_score >= 60
-                                                                            ? `hsl(${Math.round((message.concept_score - 60) * 2.25)}, 85%, 50%)`
-                                                                            : `hsl(${Math.round(message.concept_score * 0.67)}, 85%, 50%)`
+                                                                        backgroundColor: `hsl(${message.concept_score * 1.2}, 70%, 50%)`,
+                                                                        boxShadow: `0 0 8px hsl(${message.concept_score * 1.2}, 70%, 50%, 0.3)`
                                                                     }}
                                                                 />
                                                             </div>
                                                         </div>
                                                     )}
+
 
                                                     {message.mini_lesson && (
                                                         <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40">
@@ -531,39 +529,57 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                         </div>
                                                     )}
 
-                                                    {/* Inline annotations — for text assignment submissions */}
+                                                    {/* Inline annotations — for text assignment submissions (Red Pen Style) */}
                                                     {message.sender === 'ai' && (message as any).inline_annotations?.length > 0 && (
-                                                        <div className="mt-3 space-y-2">
-                                                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">📝 Inline feedback</div>
+                                                        <div className="mt-4 space-y-3">
+                                                            <div className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1 flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                                Examiner Annotations
+                                                            </div>
                                                             {(message as any).inline_annotations.map((ann: any, i: number) => (
-                                                                <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${
-                                                                    ann.type === 'strength' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800/40' :
-                                                                    ann.type === 'issue' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/40' :
-                                                                    'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800/40'
+                                                                <div key={i} className={`relative pl-4 py-2 text-sm border-l-2 ${
+                                                                    ann.type === 'strength' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10' :
+                                                                    ann.type === 'issue' ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10' :
+                                                                    'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
                                                                 }`}>
-                                                                    <p className="italic text-gray-600 dark:text-gray-400 mb-1">&ldquo;{ann.quote}&rdquo;</p>
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="text-[10px] font-bold uppercase py-0.5 px-1.5 rounded bg-white dark:bg-[#222222] shadow-sm">
+                                                                            {ann.type === 'strength' ? '✅ Strength' : ann.type === 'issue' ? '✍️ Red Pen' : 'ℹ️ Note'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="font-serif italic text-gray-700 dark:text-gray-300 mb-2 text-base leading-relaxed">
+                                                                        &ldquo;{ann.quote}&rdquo;
+                                                                    </p>
                                                                     <p className={`font-medium ${
                                                                         ann.type === 'strength' ? 'text-emerald-800 dark:text-emerald-300' :
                                                                         ann.type === 'issue' ? 'text-red-800 dark:text-red-300' :
                                                                         'text-blue-800 dark:text-blue-300'
-                                                                    }`}>{ann.comment}</p>
+                                                                    }`}>
+                                                                        {ann.comment}
+                                                                    </p>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     )}
 
-                                                    {/* Architectural review — for code assignment submissions */}
+
+                                                    {/* Architectural review — for code assignment submissions (Holistic Review) */}
                                                     {message.sender === 'ai' && (message as any).architectural_review && (
-                                                        <div className="mt-3 p-3 rounded-lg bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800/40">
-                                                            <div className="flex items-start gap-2">
-                                                                <span className="text-lg mt-0.5">🏗️</span>
+                                                        <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 dark:from-indigo-900/20 dark:to-blue-900/10 dark:border-indigo-800/30">
+                                                            <div className="flex items-start gap-3">
+                                                                <div className="p-2 rounded-lg bg-white dark:bg-[#1a1a1a] shadow-sm">
+                                                                    <span className="text-xl">🏗️</span>
+                                                                </div>
                                                                 <div className="flex-1">
-                                                                    <div className="text-xs font-medium text-indigo-800 dark:text-indigo-300 mb-1">Architectural Review</div>
-                                                                    <div className="text-sm text-indigo-900 dark:text-indigo-200">{(message as any).architectural_review}</div>
+                                                                    <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400 mb-1">Architectural Holistic Review</div>
+                                                                    <div className="text-sm text-indigo-900 dark:text-indigo-100 leading-relaxed font-medium">
+                                                                        {(message as any).architectural_review}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
+
 
                                                     {shouldShowViewReport(message) && (
                                                         <div className="my-3">
@@ -579,8 +595,26 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                             pass_score: data.pass_score
                                                                         }));
                                                                         onViewScorecard(scorecard);
-                                                                    } else {
-                                                                        onViewScorecard(message.scorecard || []);
+                                                                    } else if (message.scorecard && message.scorecard.length > 0) {
+                                                                        onViewScorecard(message.scorecard);
+                                                                    } else if (message.concept_score !== undefined && message.concept_score !== null) {
+                                                                        // Objective question: build scorecard on the fly
+                                                                        const wrongTypeLabels: Record<string, string> = {
+                                                                            terminology_confusion: 'Terminology',
+                                                                            adjacent_concept: 'Adjacent Concept',
+                                                                            completely_wrong: 'Concept Understanding',
+                                                                            format_error: 'Format / Units',
+                                                                        };
+                                                                        const category = message.wrong_answer_type
+                                                                            ? wrongTypeLabels[message.wrong_answer_type] || 'Concept Proximity'
+                                                                            : 'Concept Proximity';
+                                                                        onViewScorecard([{
+                                                                            category,
+                                                                            feedback: { correct: message.is_correct ? 'Correct answer.' : '', wrong: !message.is_correct && message.wrong_answer_type ? `Error type: ${message.wrong_answer_type.replace(/_/g, ' ')}` : '' },
+                                                                            score: message.concept_score,
+                                                                            max_score: 100,
+                                                                            pass_score: 80,
+                                                                        }]);
                                                                     }
                                                                 }}
                                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-[#333333] dark:hover:bg-[#444444] px-4 py-2 rounded-full text-xs transition-colors cursor-pointer flex items-center"
