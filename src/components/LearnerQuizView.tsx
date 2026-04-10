@@ -14,6 +14,7 @@ import isEqual from 'lodash/isEqual';
 import { safeLocalStorage } from "@/lib/utils/localStorage";
 import { useAuth } from "@/lib/auth";
 import { useThemePreference } from "@/lib/hooks/useThemePreference";
+import { AttemptData } from './ProgressGraph';
 
 // Add imports for Notion rendering
 import { BlockList, RenderConfig } from "@udus/notion-renderer/components";
@@ -186,6 +187,12 @@ export default function LearnerQuizView({
 
     // New state to track which scorecard we're viewing
     const [activeScorecard, setActiveScorecard] = useState<ScorecardItem[]>([]);
+
+    // State to track previous scorecard for comparison
+    const [previousScorecardData, setPreviousScorecardData] = useState<Record<string, { scorecard: ScorecardItem[], answer: string }>>({});
+    
+    // State to track all attempts for progress graph
+    const [allAttemptsData, setAllAttemptsData] = useState<Record<string, AttemptData[]>>({});
 
     // Add state to remember chat scroll position
     const [chatScrollPosition, setChatScrollPosition] = useState(0);
@@ -419,10 +426,33 @@ export default function LearnerQuizView({
                                 chatMessage.content = contentObj.feedback;
                             }
 
+                            // Extract mini_lesson if available
+                            if (contentObj && contentObj.mini_lesson) {
+                                chatMessage.mini_lesson = contentObj.mini_lesson;
+                            }
+
                             // Extract scorecard if available
                             if (contentObj && contentObj.scorecard) {
                                 // Convert scorecard dict to list format
                                 chatMessage.scorecard = convertScorecardToList(contentObj.scorecard);
+                            }
+                            
+                            // Extract code_quality if available (for coding questions)
+                            if (contentObj && contentObj.code_quality) {
+                                chatMessage.code_quality = contentObj.code_quality;
+                                // Convert code_quality to scorecard format for display
+                                chatMessage.scorecard = Object.entries(contentObj.code_quality).map(([category, data]: [string, any]) => ({
+                                    category,
+                                    feedback: data.feedback || { correct: '', wrong: '' },
+                                    score: data.score || 0,
+                                    max_score: data.max_score || 10,
+                                    pass_score: data.pass_score || 7
+                                }));
+                            }
+
+                            // Extract alternate_solutions if available (for coding questions)
+                            if (contentObj && contentObj.alternate_solutions) {
+                                chatMessage.alternate_solutions = contentObj.alternate_solutions;
                             }
 
                             // Extract is_correct if available
@@ -666,6 +696,14 @@ export default function LearnerQuizView({
                 feedback: aiResponse.feedback,
                 scorecard: aiResponse.scorecard || []
             };
+        } else if (currentQuestion?.config?.inputType === 'code' && aiResponse.code_quality) {
+            // For coding questions with code quality feedback
+            contentObj = {
+                feedback: aiResponse.feedback,
+                is_correct: aiResponse.is_correct,
+                code_quality: aiResponse.code_quality,
+                alternate_solutions: aiResponse.alternate_solutions || []
+            };
         } else {
             // For chat type or any other type, just include feedback
             contentObj = {
@@ -854,7 +892,7 @@ export default function LearnerQuizView({
                     user_id: userId,
                     user_email: user?.email,
                     task_id: taskId,
-                    task_type: 'quiz'
+                    task_type: 'quiz',
                 };
             } else {
                 // In normal mode, send question_id and user_id
@@ -865,7 +903,7 @@ export default function LearnerQuizView({
                     user_id: userId,
                     user_email: user?.email,
                     task_id: taskId,
-                    task_type: 'quiz'
+                    task_type: 'quiz',
                 };
             }
 
@@ -1086,6 +1124,22 @@ export default function LearnerQuizView({
                                             }
                                         }
 
+                                        // Handle mini_lesson when available
+                                        if (data.mini_lesson) {
+                                            // Store mini lesson to add to the final message
+                                            initialAiMessage.mini_lesson = data.mini_lesson;
+                                        }
+
+                                        // Handle code_quality when available (for coding questions)
+                                        if (data.code_quality) {
+                                            initialAiMessage.code_quality = data.code_quality;
+                                        }
+
+                                        // Handle alternate_solutions when available (for coding questions)
+                                        if (data.alternate_solutions) {
+                                            initialAiMessage.alternate_solutions = data.alternate_solutions;
+                                        }
+
                                         // Handle scorecard data when available
                                         if (data.scorecard) {
                                             // Convert scorecard dict to list format
@@ -1115,7 +1169,7 @@ export default function LearnerQuizView({
 
                             // After processing all chunks (stream is complete)
 
-                            // Only now update the chat message with the complete scorecard
+                            // Only now update the chat message with the complete scorecard and mini_lesson
                             if (completeScorecard.length > 0) {
                                 // Check if all criteria received maximum scores
                                 if (completeScorecard.length > 0) {
@@ -1129,7 +1183,7 @@ export default function LearnerQuizView({
                                     );
                                 }
 
-                                // Update the existing AI message with the complete scorecard data
+                                // Update the existing AI message with the complete scorecard data and mini_lesson
                                 setChatHistories(prev => {
                                     // Find the current question's chat history
                                     const currentHistory = [...(prev[currentQuestionId] || [])];
@@ -1138,10 +1192,13 @@ export default function LearnerQuizView({
                                     const aiMessageIndex = currentHistory.findIndex(msg => msg.id === aiMessageId);
 
                                     if (aiMessageIndex !== -1) {
-                                        // Update the existing message with the complete scorecard
+                                        // Update the existing message with the complete scorecard and mini_lesson
                                         currentHistory[aiMessageIndex] = {
                                             ...currentHistory[aiMessageIndex],
-                                            scorecard: completeScorecard
+                                            scorecard: completeScorecard,
+                                            mini_lesson: initialAiMessage.mini_lesson,
+                                            code_quality: initialAiMessage.code_quality,
+                                            alternate_solutions: initialAiMessage.alternate_solutions
                                         };
                                     }
 
@@ -1158,6 +1215,45 @@ export default function LearnerQuizView({
                                 if (completeScorecard && completeScorecard.length > 0 &&
                                     validQuestions[currentQuestionIndex]?.config?.responseType !== 'exam') {
                                     handleViewScorecard(completeScorecard);
+                                }
+                            } else if (initialAiMessage.code_quality && Object.keys(initialAiMessage.code_quality).length > 0) {
+                                // Handle code_quality for coding questions
+                                const codeQualityScorecard = Object.entries(initialAiMessage.code_quality).map(([category, data]: [string, any]) => ({
+                                    category,
+                                    feedback: data.feedback || { correct: '', wrong: '' },
+                                    score: data.score || 0,
+                                    max_score: data.max_score || 10,
+                                    pass_score: data.pass_score || 7
+                                }));
+
+                                // Check if code is correct based on code quality scores
+                                isCorrect = codeQualityScorecard.every((item: ScorecardItem) =>
+                                    item.score >= item.pass_score
+                                );
+
+                                // Update the existing AI message with code quality as scorecard
+                                setChatHistories(prev => {
+                                    const currentHistory = [...(prev[currentQuestionId] || [])];
+                                    const aiMessageIndex = currentHistory.findIndex(msg => msg.id === aiMessageId);
+
+                                    if (aiMessageIndex !== -1) {
+                                        currentHistory[aiMessageIndex] = {
+                                            ...currentHistory[aiMessageIndex],
+                                            scorecard: codeQualityScorecard,
+                                            code_quality: initialAiMessage.code_quality,
+                                            alternate_solutions: initialAiMessage.alternate_solutions
+                                        };
+                                    }
+
+                                    return {
+                                        ...prev,
+                                        [currentQuestionId]: currentHistory
+                                    };
+                                });
+
+                                // Auto-open the scorecard for coding questions
+                                if (validQuestions[currentQuestionIndex]?.config?.responseType !== 'exam') {
+                                    handleViewScorecard(codeQualityScorecard);
                                 }
                             }
 
@@ -1441,6 +1537,39 @@ export default function LearnerQuizView({
         // Save current chat scroll position before switching views
         if (chatContainerRef.current) {
             setChatScrollPosition(chatContainerRef.current.scrollTop);
+        }
+
+        const currentQuestionId = validQuestions[currentQuestionIndex]?.id;
+        if (currentQuestionId && getLastUserMessage) {
+            // Calculate overall score for this attempt
+            const totalScore = scorecard.reduce((sum, item) => sum + item.score, 0);
+            const totalMaxScore = scorecard.reduce((sum, item) => sum + item.max_score, 0);
+            const overallPercentage = Math.round((totalScore / totalMaxScore) * 100);
+            
+            // Create new attempt data
+            const newAttempt: AttemptData = {
+                attemptNumber: (allAttemptsData[currentQuestionId]?.length || 0) + 1,
+                timestamp: new Date(),
+                scorecard: scorecard,
+                overallScore: totalScore,
+                overallPercentage: overallPercentage,
+            };
+            
+            // Add to all attempts history FIRST (before updating previous)
+            setAllAttemptsData(prev => ({
+                ...prev,
+                [currentQuestionId]: [...(prev[currentQuestionId] || []), newAttempt]
+            }));
+            
+            // Now store current scorecard as previous for NEXT attempt
+            // This ensures we're comparing with the actual previous attempt, not the current one
+            setPreviousScorecardData(prev => ({
+                ...prev,
+                [currentQuestionId]: {
+                    scorecard: scorecard,
+                    answer: getLastUserMessage.content || ''
+                }
+            }));
         }
 
         setActiveScorecard(scorecard);
@@ -2094,6 +2223,23 @@ export default function LearnerQuizView({
                             activeScorecard={activeScorecard}
                             handleBackToChat={handleBackToChat}
                             lastUserMessage={getLastUserMessage as ChatMessage | null}
+                            allAttempts={allAttemptsData[validQuestions[currentQuestionIndex]?.id]}
+                            previousAnswerText={(() => {
+                                const currentQuestionId = validQuestions[currentQuestionIndex]?.id;
+                                const history = chatHistories[currentQuestionId] || [];
+                                const userMessages = history.filter(msg => msg.sender === 'user');
+                                // Get second to last user message for previous answer
+                                return userMessages.length >= 2 ? userMessages[userMessages.length - 2].content : '';
+                            })()}
+                            currentQuestionId={validQuestions[currentQuestionIndex]?.id}
+                            alternateSolutions={(() => {
+                                const currentQuestionId = validQuestions[currentQuestionIndex]?.id;
+                                const history = chatHistories[currentQuestionId] || [];
+                                const aiMessages = history.filter(msg => msg.sender === 'ai');
+                                // Get the last AI message that has alternate_solutions
+                                const lastAiWithSolutions = aiMessages.reverse().find(msg => msg.alternate_solutions && msg.alternate_solutions.length > 0);
+                                return lastAiWithSolutions?.alternate_solutions || [];
+                            })()}
                         />
                     ) : (
                         /* Use the ChatView component */

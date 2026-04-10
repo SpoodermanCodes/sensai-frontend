@@ -237,13 +237,13 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
     // Helper to determine if "View Report" button should be shown
     const shouldShowViewReport = (message: ChatMessage) => {
-        // Check if message is from AI and has scorecard data
+        // Check if message is from AI and has scorecard data OR code_quality data
         return (
             message.sender === 'ai' &&
-            message.scorecard &&
-            message.scorecard.length > 0 &&
-            // Check if the current question is configured for report responses
-            currentQuestionConfig?.questionType === 'subjective'
+            (
+                (message.scorecard && message.scorecard.length > 0 && currentQuestionConfig?.questionType === 'subjective') ||
+                (message.code_quality && Object.keys(message.code_quality).length > 0 && currentQuestionConfig?.inputType === 'code')
+            )
         );
     };
 
@@ -446,10 +446,38 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                         </pre>
                                                     )}
 
+                                                    {message.mini_lesson && (
+                                                        <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40">
+                                                            <div className="flex items-start gap-2">
+                                                                <span className="text-lg mt-0.5">💡</span>
+                                                                <div className="flex-1">
+                                                                    <div className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Concept Refresher</div>
+                                                                    <div className="text-sm text-amber-900 dark:text-amber-200">
+                                                                        {message.mini_lesson}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {shouldShowViewReport(message) && (
                                                         <div className="my-3">
                                                             <button
-                                                                onClick={() => onViewScorecard(message.scorecard || [])}
+                                                                onClick={() => {
+                                                                    // Convert code_quality to scorecard format if it exists
+                                                                    if (message.code_quality) {
+                                                                        const scorecard = Object.entries(message.code_quality).map(([category, data]: [string, any]) => ({
+                                                                            category,
+                                                                            feedback: data.feedback,
+                                                                            score: data.score,
+                                                                            max_score: data.max_score,
+                                                                            pass_score: data.pass_score
+                                                                        }));
+                                                                        onViewScorecard(scorecard);
+                                                                    } else {
+                                                                        onViewScorecard(message.scorecard || []);
+                                                                    }
+                                                                }}
                                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-[#333333] dark:hover:bg-[#444444] px-4 py-2 rounded-full text-xs transition-colors cursor-pointer flex items-center"
                                                                 type="button"
                                                             >

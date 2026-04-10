@@ -502,6 +502,177 @@ const CodeEditorView = forwardRef<CodeEditorViewHandle, CodeEditorViewProps>(({
         ['html', 'css'].includes(lang)
     );
 
+    // Add state for pre-run error detection warnings
+    const [preRunWarnings, setPreRunWarnings] = useState<string[]>([]);
+
+    // Function to detect common errors before running code
+    const detectPreRunErrors = (language: string, sourceCode: string): string[] => {
+        const warnings: string[] = [];
+
+        if (!sourceCode || !sourceCode.trim()) {
+            return warnings;
+        }
+
+        // Python-specific checks
+        if (language === 'python') {
+            const lines = sourceCode.split('\n');
+            
+            // Check for missing colons after if/for/while/def/class
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                // Check if line starts with control statement but doesn't end with colon
+                if (/^(if|elif|else|for|while|def|class)\s+/.test(trimmed) && !trimmed.endsWith(':')) {
+                    warnings.push(`Line ${index + 1}: Missing colon (:) after '${trimmed.split(' ')[0]}' statement`);
+                }
+            });
+
+            // Check for indentation issues (more comprehensive)
+            for (let i = 1; i < lines.length; i++) {
+                const prevLine = lines[i - 1].trim();
+                const currentLine = lines[i];
+                
+                // Check if previous line ends with colon (expects indentation)
+                if (prevLine.endsWith(':') && currentLine.trim() && !currentLine.startsWith(' ') && !currentLine.startsWith('\t')) {
+                    warnings.push(`Line ${i + 1}: Expected indented block after colon`);
+                    break; // Only show first indentation error
+                }
+                
+                // Check for inconsistent indentation (mixing tabs and spaces)
+                if (currentLine.startsWith(' ') && currentLine.includes('\t')) {
+                    warnings.push(`Line ${i + 1}: Mixing tabs and spaces for indentation`);
+                    break;
+                }
+            }
+
+            // Check for wrong loop syntax
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                // Check for common for loop mistakes
+                if (/^for\s+\w+\s+in\s+range\s*\(/.test(trimmed)) {
+                    // This is correct
+                } else if (/^for\s+\w+\s*=/.test(trimmed)) {
+                    warnings.push(`Line ${index + 1}: Python uses 'for x in range()' not 'for x = ...'`);
+                }
+            });
+
+            // Check print() syntax
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                // Check for print without parentheses (Python 2 style)
+                if (/^print\s+[^(]/.test(trimmed)) {
+                    warnings.push(`Line ${index + 1}: print() requires parentheses in Python 3`);
+                }
+            });
+
+            // Check input() syntax
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                // Check for raw_input (Python 2)
+                if (trimmed.includes('raw_input')) {
+                    warnings.push(`Line ${index + 1}: Use input() instead of raw_input() in Python 3`);
+                }
+            });
+
+            // Check for undefined variables (basic check)
+            const printPattern = /print\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+            const definedVars = new Set<string>();
+            const usedVars = new Set<string>();
+            
+            // Find defined variables
+            const assignPattern = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g;
+            let match;
+            while ((match = assignPattern.exec(sourceCode)) !== null) {
+                definedVars.add(match[1]);
+            }
+            
+            // Find used variables in print statements
+            while ((match = printPattern.exec(sourceCode)) !== null) {
+                usedVars.add(match[1]);
+            }
+            
+            // Check for undefined variables
+            usedVars.forEach(varName => {
+                if (!definedVars.has(varName) && !['True', 'False', 'None'].includes(varName)) {
+                    warnings.push(`Variable '${varName}' may not be defined before use`);
+                }
+            });
+        }
+
+        // JavaScript/Node.js specific checks
+        if (language === 'javascript' || language === 'nodejs') {
+            const lines = sourceCode.split('\n');
+            
+            // Check for missing semicolons (basic check)
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.endsWith(';') && !trimmed.endsWith('{') && !trimmed.endsWith('}') && 
+                    !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*') &&
+                    !trimmed.match(/^(if|else|for|while|function|const|let|var|return)\b/)) {
+                    // Only warn if it looks like a statement that should end with semicolon
+                    if (trimmed.includes('=') || trimmed.includes('console.log')) {
+                        warnings.push(`Line ${index + 1}: Consider adding semicolon at end of statement`);
+                    }
+                }
+            });
+
+            // Check for wrong loop syntax
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                // Check for Python-style for loops
+                if (/for\s+\w+\s+in\s+range/.test(trimmed)) {
+                    warnings.push(`Line ${index + 1}: JavaScript uses 'for (let i = 0; i < n; i++)' not 'for x in range'`);
+                }
+            });
+
+            // Check for undefined variables (basic check)
+            const consolePattern = /console\.log\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+            const definedVars = new Set<string>();
+            const usedVars = new Set<string>();
+            
+            // Find defined variables
+            const declarePattern = /(const|let|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+            let match;
+            while ((match = declarePattern.exec(sourceCode)) !== null) {
+                definedVars.add(match[2]);
+            }
+            
+            // Find used variables
+            while ((match = consolePattern.exec(sourceCode)) !== null) {
+                usedVars.add(match[1]);
+            }
+            
+            // Check for undefined variables
+            usedVars.forEach(varName => {
+                if (!definedVars.has(varName)) {
+                    warnings.push(`Variable '${varName}' may not be defined before use`);
+                }
+            });
+        }
+
+        // SQL specific checks
+        if (language === 'sql') {
+            // Check for missing semicolons at end of statements
+            const statements = sourceCode.split(';').filter(s => s.trim());
+            if (statements.length > 1 && !sourceCode.trim().endsWith(';')) {
+                warnings.push("Missing semicolon at end of SQL statement");
+            }
+
+            // Check for SELECT without FROM
+            const selectPattern = /\bSELECT\b[^;]*(?!FROM)/gi;
+            if (selectPattern.test(sourceCode) && !sourceCode.toUpperCase().includes('FROM')) {
+                warnings.push("SELECT statement may be missing FROM clause");
+            }
+        }
+
+        return warnings;
+    };
+
+    // Check for errors whenever code changes
+    useEffect(() => {
+        const warnings = detectPreRunErrors(activeLanguage, code[activeLanguage] || '');
+        setPreRunWarnings(warnings);
+    }, [code, activeLanguage]);
+
     // Add state for input validation and toast
     const [inputError, setInputError] = useState<boolean>(false);
     const [showToast, setShowToast] = useState<boolean>(false);
@@ -1381,6 +1552,26 @@ const CodeEditorView = forwardRef<CodeEditorViewHandle, CodeEditorViewProps>(({
 
             {/* Main editor area with potential split for input */}
             <div className="flex-1 overflow-auto flex flex-col">
+                {/* Pre-run warnings banner */}
+                {preRunWarnings.length > 0 && (
+                    <div className="bg-amber-50 border-b border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40 px-4 py-2">
+                        <div className="flex items-start gap-2">
+                            <span className="text-lg mt-0.5">⚠️</span>
+                            <div className="flex-1">
+                                <div className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Potential Issues Detected</div>
+                                <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                                    {preRunWarnings.slice(0, 3).map((warning, index) => (
+                                        <li key={index}>• {warning}</li>
+                                    ))}
+                                    {preRunWarnings.length > 3 && (
+                                        <li className="text-amber-700 dark:text-amber-400">+ {preRunWarnings.length - 3} more issue{preRunWarnings.length - 3 > 1 ? 's' : ''}</li>
+                                    )}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Code editor */}
                 <div className={`${showInputPanel ? 'flex-none' : 'flex-1'} ${showInputPanel ? 'h-2/3' : ''}`}>
                     <Editor

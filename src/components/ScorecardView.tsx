@@ -1,24 +1,46 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { ChatMessage, ScorecardItem } from '../types/quiz';
 import LearnerScorecard from './LearnerScorecard';
+import AnswerComparison from './AnswerComparison';
+import ProgressGraph, { AttemptData } from './ProgressGraph';
+import AlternateSolutions from './AlternateSolutions';
 
 interface ScorecardViewProps {
     activeScorecard: ScorecardItem[];
     handleBackToChat: () => void;
     lastUserMessage: ChatMessage | null;
+    allAttempts?: AttemptData[];
+    previousAnswerText?: string;
+    currentQuestionId?: string;
+    alternateSolutions?: any[];
 }
 
 const ScorecardView: React.FC<ScorecardViewProps> = ({
     activeScorecard,
     handleBackToChat,
     lastUserMessage,
+    allAttempts,
+    previousAnswerText,
+    currentQuestionId,
+    alternateSolutions,
 }) => {
     const [isTextExpanded, setIsTextExpanded] = useState(false);
+    const [showProgressGraph, setShowProgressGraph] = useState(false);
 
     const toggleTextExpansion = () => {
         setIsTextExpanded(!isTextExpanded);
     };
+    
+    // Check if we have multiple attempts for comparison (need at least 2 total)
+    const hasMultipleAttempts = allAttempts && allAttempts.length >= 2;
+    
+    // Get previous attempt data (second to last)
+    const previousAttempt = hasMultipleAttempts ? allAttempts[allAttempts.length - 2] : null;
+    
+    // Show comparison when we have 2 or more attempts (1+ previous attempts)
+    const showComparison = allAttempts && allAttempts.length > 1;
+    
 
     return (
         <div className="flex flex-col h-full px-6 py-6 overflow-auto relative">
@@ -74,8 +96,63 @@ const ScorecardView: React.FC<ScorecardViewProps> = ({
                     </div>
                 </div>
 
+                {/* Progress Graph Button */}
+                {hasMultipleAttempts && (
+                    <div className="mb-4 flex justify-center">
+                        <button
+                            onClick={() => setShowProgressGraph(true)}
+                            className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                            type="button"
+                        >
+                            <TrendingUp size={16} />
+                            <span>View Progress Graph</span>
+                        </button>
+                    </div>
+                )}
+
+                {/* Always show the regular scorecard */}
                 <LearnerScorecard scorecard={activeScorecard} className="mt-0" />
+                
+                {/* Show comparison below the regular scorecard if we have previous attempt */}
+                {showComparison && previousAttempt && (
+                    <div className="mt-8">
+                        <h3 className="text-lg font-light mb-4 px-1 text-slate-900 dark:text-white">Comparison with Previous Attempt</h3>
+                        <AnswerComparison
+                            currentScorecard={activeScorecard}
+                            previousScorecard={previousAttempt.scorecard}
+                            currentAnswer={lastUserMessage?.content || ''}
+                            previousAnswer={previousAnswerText || ''}
+                        />
+                    </div>
+                )}
+                
+                {/* Alternate Solutions Section (for coding questions) */}
+                {alternateSolutions && alternateSolutions.length > 0 && (
+                    <AlternateSolutions solutions={alternateSolutions} />
+                )}
+                
+                {/* Try Again Button */}
+                <div className="mt-6 flex justify-center">
+                    <button
+                        onClick={handleBackToChat}
+                        className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-700 dark:hover:bg-purple-800 px-6 py-3 rounded-full text-sm font-medium transition-colors cursor-pointer shadow-sm"
+                        type="button"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Try Again</span>
+                    </button>
+                </div>
             </div>
+            
+            {/* Progress Graph Modal */}
+            {showProgressGraph && hasMultipleAttempts && (
+                <ProgressGraph
+                    attempts={allAttempts!}
+                    onClose={() => setShowProgressGraph(false)}
+                />
+            )}
         </div>
     );
 };

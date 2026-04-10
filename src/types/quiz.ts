@@ -119,12 +119,21 @@ export interface ChatMessage {
     messageType?: 'text' | 'audio' | 'code' | 'file';
     audioData?: string; // base64 encoded audio data
     scorecard?: ScorecardItem[]; // Add scorecard field for detailed feedback
+    code_quality?: Record<string, any>; // Add code quality feedback for coding questions
+    alternate_solutions?: AlternateSolution[]; // Add alternate solutions for coding questions
     isError?: boolean;
     is_correct?: boolean; // Add is_correct attribute for exam responses
     fileUuid?: string; // UUID for file messages
     fileName?: string; // Filename for file messages
+    mini_lesson?: string; // Mini lesson for when student is stuck on same criterion
 }   
 
+
+export interface AlternateSolution {
+    approach: string;
+    code: string;
+    explanation: string;
+}
 
 // Define scorecard item structure
 export interface ScorecardItem {
@@ -142,4 +151,6 @@ export interface AIResponse {
     feedback: string;
     is_correct: boolean;
     scorecard?: ScorecardItem[];
+    code_quality?: Record<string, any>;
+    alternate_solutions?: AlternateSolution[];
 }
