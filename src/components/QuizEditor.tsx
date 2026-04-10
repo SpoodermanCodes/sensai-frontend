@@ -1139,16 +1139,26 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                 Add questions to create an interactive quiz for your learners
             </p>
             {status === 'draft' && (
-                <button
-                    onClick={addQuestion}
-                    className="flex items-center px-5 py-2.5 text-sm rounded-md transition-colors cursor-pointer text-white bg-blue-600 hover:bg-blue-700 dark:text-black dark:bg-white dark:hover:bg-gray-100 border border-transparent"
-                    disabled={readOnly}
-                >
-                    <div className="w-4 h-4 rounded-full border border-transparent flex items-center justify-center mr-2">
-                        <Plus size={10} className="text-white dark:text-black" />
-                    </div>
-                    Add question
-                </button>
+                <div className="flex flex-col items-center gap-3">
+                    <button
+                        onClick={addQuestion}
+                        className="flex items-center px-5 py-2.5 text-sm rounded-md transition-colors cursor-pointer text-white bg-blue-600 hover:bg-blue-700 dark:text-black dark:bg-white dark:hover:bg-gray-100 border border-transparent"
+                        disabled={readOnly}
+                    >
+                        <div className="w-4 h-4 rounded-full border border-transparent flex items-center justify-center mr-2">
+                            <Plus size={10} className="text-white dark:text-black" />
+                        </div>
+                        Add question
+                    </button>
+                    <button
+                        onClick={() => setShowGenerateAssessment(true)}
+                        className="flex items-center px-5 py-2.5 text-sm rounded-md transition-colors cursor-pointer text-white bg-purple-600 hover:bg-purple-700 border border-transparent"
+                        disabled={readOnly}
+                    >
+                        <Sparkles size={14} className="mr-2" />
+                        Generate from material
+                    </button>
+                </div>
             )}
         </div>
     );
@@ -1863,7 +1873,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
 
                                     {/* Add Question Button */}
                                     {!readOnly && status === 'draft' && (
-                                        <div className="p-3">
+                                        <div className="p-3 flex flex-col gap-2">
                                             <button
                                                 onClick={addQuestion}
                                                 className="w-full flex items-center justify-center px-4 py-2 text-sm rounded-md transition-colors cursor-pointer disabled:cursor-not-allowed text-white bg-blue-600 hover:bg-blue-700 dark:text-black dark:bg-white dark:hover:bg-gray-100"
@@ -1873,6 +1883,14 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                                     <Plus size={10} className="text-white dark:text-black" />
                                                 </div>
                                                 Add question
+                                            </button>
+                                            <button
+                                                onClick={() => setShowGenerateAssessment(true)}
+                                                className="w-full flex items-center justify-center px-4 py-2 text-sm rounded-md transition-colors cursor-pointer disabled:cursor-not-allowed text-white bg-purple-600 hover:bg-purple-700"
+                                                disabled={readOnly || isLoadingIntegration}
+                                            >
+                                                <Sparkles size={13} className="mr-2" />
+                                                Generate
                                             </button>
                                         </div>
                                     )}
@@ -2238,6 +2256,13 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                     </>
                 )}
             </div>
+
+            {/* Generate Assessment Dialog */}
+            <GenerateAssessmentDialog
+                open={showGenerateAssessment}
+                onClose={() => setShowGenerateAssessment(false)}
+                onUseQuestion={handleUseGeneratedQuestion}
+            />
 
             {/* Toast for language combination validation */}
             <Toast
