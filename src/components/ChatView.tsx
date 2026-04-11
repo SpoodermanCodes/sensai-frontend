@@ -38,6 +38,7 @@ interface ChatViewProps {
     currentAnswer: string;
     handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
     handleSubmitAnswer: (responseType?: 'text' | 'code') => void;
+    onMcqOptionSelect?: (option: string) => void;
     handleAudioSubmit: (audioBlob: Blob) => void;
     handleViewScorecard: (scorecard: ScorecardItem[]) => void;
     viewOnly?: boolean;
@@ -73,6 +74,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
     currentAnswer,
     handleInputChange,
     handleSubmitAnswer,
+    onMcqOptionSelect,
     handleAudioSubmit,
     handleViewScorecard,
     viewOnly = false,
@@ -676,6 +678,30 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                                 onAudioSubmit={handleAudioSubmit}
                                                 isSubmitting={isSubmitting || isAiResponding}
                                             />
+                                        </div>
+                                    ) : currentQuestionConfig?.questionType === 'mcq' ? (
+                                        /* MCQ radio button options */
+                                        <div className="space-y-2 pt-1">
+                                            {(currentQuestionConfig?.mcqOptions || []).filter((o: string) => o.trim()).map((option: string, i: number) => (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    disabled={isSubmitting || isAiResponding || !!completedQuestionIds[currentQuestionId]}
+                                                    onClick={() => {
+                                                        if (onMcqOptionSelect) {
+                                                            onMcqOptionSelect(option);
+                                                        }
+                                                    }}
+                                                    className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors cursor-pointer ${
+                                                        currentAnswer === option
+                                                            ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-900/20 dark:text-violet-200 dark:border-violet-500'
+                                                            : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50 dark:border-[#333333] dark:bg-[#1A1A1A] dark:text-gray-200 dark:hover:border-[#444444]'
+                                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                >
+                                                    <span className="font-medium mr-2 text-gray-400 dark:text-gray-500">{String.fromCharCode(65 + i)}.</span>
+                                                    {option}
+                                                </button>
+                                            ))}
                                         </div>
                                     ) : (
                                         /* Hide the text input for coding questions in exam mode */

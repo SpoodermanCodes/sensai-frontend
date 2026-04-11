@@ -30,6 +30,12 @@ export const questionTypeOptions: DropdownOption[] = [
         "color": "#3C6E47",
         "tooltip": "No single correct answer, open-ended question"
     },
+    {
+        "label": "MCQ",
+        "value": "mcq",
+        "color": "#7C3AED",
+        "tooltip": "Multiple choice question with one correct option"
+    },
 ];
 
 // Options for copy-paste control in exam questions

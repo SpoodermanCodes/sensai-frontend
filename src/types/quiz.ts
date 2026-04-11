@@ -7,18 +7,18 @@ export interface QuizEditorHandle {
     hasContent: () => boolean;
     hasChanges: () => boolean;
     hasQuestionContent: () => boolean;
-    getCurrentQuestionType: () => 'objective' | 'subjective' | null;
+    getCurrentQuestionType: () => 'objective' | 'subjective' | 'mcq' | null;
     getCurrentQuestionInputType: () => 'text' | 'code' | 'audio' | null;
     hasCorrectAnswer: () => boolean;
     hasCodingLanguages: () => boolean;
     hasScorecard: () => boolean;
-    setActiveTab: (tab: 'question' | 'answer' | 'scorecard' | 'knowledge') => void;
+    setActiveTab: (tab: 'question' | 'answer' | 'scorecard' | 'knowledge' | 'mcq') => void;
     validateBeforePublish: () => boolean;
     getCurrentQuestionConfig: () => QuizQuestionConfig | undefined;
     validateScorecardCriteria: (
         scorecard: ScorecardTemplate | undefined, 
         callbacks: {
-            setActiveTab: (tab: 'question' | 'answer' | 'scorecard' | 'knowledge') => void;
+            setActiveTab: (tab: 'question' | 'answer' | 'scorecard' | 'knowledge' | 'mcq') => void;
             showErrorMessage?: (title: string, message: string, emoji?: string) => void;
             questionIndex?: number;
         }
@@ -32,12 +32,14 @@ export interface QuizQuestionConfig {
     responseType: 'chat' | 'exam';
     correctAnswer?: any[];
     codingLanguages?: string[]; // For multiple coding languages
-    questionType: 'objective' | 'subjective';
+    questionType: 'objective' | 'subjective' | 'mcq';
     scorecardData?: ScorecardTemplate;
     knowledgeBaseBlocks: any[]; // Add knowledge base content blocks
     linkedMaterialIds: string[]; // Add IDs of linked learning materials
     title: string;
     settings?: any;
+    mcqOptions?: string[]; // Options for MCQ questions
+    mcqCorrectIndex?: number; // Index of the correct option
 }
 
 export interface QuizQuestion {
@@ -88,6 +90,7 @@ export interface APIQuestionResponse {
     type: string;
     input_type: string;
     response_type: string;
+    mcq_options?: string[];
     scorecard_id?: number;
     scorecard?: {
         id: number;
@@ -128,7 +131,7 @@ export interface ChatMessage {
     mini_lesson?: string; // Mini lesson for when student is stuck on same criterion
     code_xray?: CodeAnnotation[]; // Inline code annotations
     breakthrough_moment?: string; // Aha moment when student finally gets it after multiple attempts
-    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error'; // Error classification for short-answer
+    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error' | 'plausible_distractor' | 'opposite_concept' | 'partially_correct' | 'random_guess';
     concept_score?: number; // 0-100 conceptual proximity score
 }   
 
@@ -166,7 +169,7 @@ export interface AIResponse {
     alternate_solutions?: AlternateSolution[];
     code_xray?: CodeAnnotation[];
     breakthrough_moment?: string;
-    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error';
+    wrong_answer_type?: 'terminology_confusion' | 'adjacent_concept' | 'completely_wrong' | 'format_error' | 'plausible_distractor' | 'opposite_concept' | 'partially_correct' | 'random_guess';
     concept_score?: number;
     mini_lesson?: string;
 }

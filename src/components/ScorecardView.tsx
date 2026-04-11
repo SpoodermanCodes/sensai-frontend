@@ -15,6 +15,7 @@ interface ScorecardViewProps {
     previousAnswerText?: string;
     currentQuestionId?: string;
     alternateSolutions?: any[];
+    isCodingQuestion?: boolean;
 }
 
 const ScorecardView: React.FC<ScorecardViewProps> = ({
@@ -26,6 +27,7 @@ const ScorecardView: React.FC<ScorecardViewProps> = ({
     previousAnswerText,
     currentQuestionId,
     alternateSolutions,
+    isCodingQuestion = false,
 }) => {
     const [isTextExpanded, setIsTextExpanded] = useState(false);
     const [showProgressGraph, setShowProgressGraph] = useState(false);
@@ -139,14 +141,14 @@ const ScorecardView: React.FC<ScorecardViewProps> = ({
                 {/* Try Again Button */}
                 <div className="mt-6 flex justify-center">
                     <button
-                        onClick={handleTryAgain || handleBackToChat}
+                        onClick={isCodingQuestion ? (handleTryAgain || handleBackToChat) : handleBackToChat}
                         className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-700 dark:hover:bg-purple-800 px-6 py-3 rounded-full text-sm font-medium transition-colors cursor-pointer shadow-sm"
                         type="button"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        <span>Try Again</span>
+                        <span>{isCodingQuestion ? 'Try Again' : 'Back to Chat'}</span>
                     </button>
                 </div>
             </div>

@@ -110,21 +110,67 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
     const [isGenerating, setIsGenerating] = useState(false);
     const [generateError, setGenerateError] = useState<string | null>(null);
     const [generatedScorecardKey, setGeneratedScorecardKey] = useState(0);
+    const pendingEditorUpdate = useRef<any[] | null>(null);
+
+    // Source material for auto-generation (to be saved as a separate task)
+    const [sourceMaterialBlocks, setSourceMaterialBlocks] = useState<any[]>([]);
 
     const handleGenerateFromMaterial = useCallback(async () => {
         setIsGenerating(true);
         setGenerateError(null);
         try {
-            // 1. Fetch current task to get milestone_id
+            // 1. Fetch current task to get milestone_id and course_id
             const taskRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/${taskId}`);
             if (!taskRes.ok) throw new Error('Failed to fetch task details');
             const taskData = await taskRes.json();
             const milestoneId = taskData.milestone_id;
+            const currentCourseId = taskData.course_id || courseId;
 
             let moduleMaterialText = "";
 
-            // 2. Fetch milestone to get all learning materials if available
-            if (milestoneId) {
+            // 2. If user provided new source material in this editor, save it as a separate task first
+            const sourceText = extractTextFromBlocks(sourceMaterialBlocks).trim();
+            if (sourceText.length > 0 && milestoneId && currentCourseId) {
+                console.log('Detected new source material, saving as separate task in module...');
+                
+                const assignmentTitle = getDialogTitle();
+                const materialTitle = assignmentTitle ? `Source: ${assignmentTitle}` : "Learning Material (Source)";
+
+                // Create draft task
+                const createRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: materialTitle,
+                        type: "learning_material",
+                        course_id: currentCourseId,
+                        milestone_id: milestoneId
+                    }),
+                });
+                
+                if (createRes.ok) {
+                    const newMaterialData = await createRes.json();
+                    const newMaterialId = newMaterialData.id;
+                    
+                    // Save content to that task
+                    await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/${newMaterialId}/learning_material`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: materialTitle,
+                            blocks: sourceMaterialBlocks,
+                            scheduled_publish_at: null
+                        }),
+                    });
+                    
+                    // Add to linked materials for this assignment
+                    setLinkedMaterialIds(prev => Array.from(new Set([...prev, newMaterialId.toString()])));
+                    moduleMaterialText = sourceText;
+                }
+            }
+
+            // 3. Fetch milestone to get all learning materials if available (only if moduleMaterialText is still empty)
+            if (!moduleMaterialText && milestoneId) {
                 const milestoneRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/milestones/${milestoneId}`);
                 if (milestoneRes.ok) {
                     const milestoneData = await milestoneRes.json();
@@ -172,9 +218,8 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     reference_material: referenceMaterial,
-                    assessment_type: submissionType.value,
-                    course_id: courseId,
-                    generate_problem_statement: true // Always generate/improve problem statement based on module analysis
+                    question_type: submissionType.value === 'code' ? 'coding' : 'assignment',
+                    num_questions: 1,
                 }),
             });
             if (!res.ok) throw new Error('Generation failed');
@@ -182,7 +227,19 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
             
             // Update problem statement
             if (data.problem_statement) {
+                pendingEditorUpdate.current = data.problem_statement;
                 setProblemBlocks(data.problem_statement);
+            } else if (data.questions?.[0]?.question_text) {
+                // Convert plain text question into a BlockNote paragraph block
+                const newBlocks = [{
+                    id: `gen-${Date.now()}`,
+                    type: 'paragraph',
+                    props: { textColor: 'default', backgroundColor: 'default', textAlignment: 'left' },
+                    content: [{ type: 'text', text: data.questions[0].question_text, styles: {} }],
+                    children: []
+                }];
+                pendingEditorUpdate.current = newBlocks;
+                setProblemBlocks(newBlocks);
             }
 
             // Auto-populate scorecard from rubric (mapping from backend format)
@@ -428,8 +485,20 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
             }
         }
 
-        // Ensure editor instance is updated when content is cleared
-        if (editorRef.current && problemBlocks.length === 0) {
+        // Ensure editor instance is updated when content is cleared or set programmatically
+        if (editorRef.current && pendingEditorUpdate.current !== null) {
+            const blocks = pendingEditorUpdate.current;
+            pendingEditorUpdate.current = null;
+            try {
+                if (editorRef.current.replaceBlocks) {
+                    editorRef.current.replaceBlocks(editorRef.current.document, blocks);
+                } else if (editorRef.current.setContent) {
+                    editorRef.current.setContent(blocks);
+                }
+            } catch (error) {
+                console.error('Error updating editor content:', error);
+            }
+        } else if (editorRef.current && problemBlocks.length === 0) {
             try {
                 if (editorRef.current.replaceBlocks) {
                     editorRef.current.replaceBlocks(editorRef.current.document, []);
@@ -767,7 +836,7 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                                 onClick={() => setActiveTab('knowledge')}
                             >
                                 <BookOpen size={16} className="mr-2" />
-                                AI training resources
+                                AI training resource & Source
                             </button>
                         </div>
 
@@ -888,6 +957,7 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                             <KnowledgeBaseEditor
                                 knowledgeBaseBlocks={knowledgeBaseBlocks}
                                 linkedMaterialIds={linkedMaterialIds}
+                                sourceMaterialBlocks={sourceMaterialBlocks}
                                 courseId={courseId}
                                 readOnly={readOnly || isLoadingAssignment}
                                 onKnowledgeBaseChange={(blocks) => {
@@ -896,6 +966,10 @@ const AssignmentEditor = forwardRef<AssignmentEditorHandle, AssignmentEditorProp
                                 }}
                                 onLinkedMaterialsChange={(ids) => {
                                     setLinkedMaterialIds(ids);
+                                    setDirty(true);
+                                }}
+                                onSourceMaterialChange={(blocks) => {
+                                    setSourceMaterialBlocks(blocks);
                                     setDirty(true);
                                 }}
                                 className="assignment"

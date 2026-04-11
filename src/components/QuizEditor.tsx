@@ -326,13 +326,17 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                     inputType: question.input_type || 'text' as 'text' | 'code' | 'audio',
                                     responseType: question.response_type,
                                     correctAnswer: correctAnswer,
-                                    questionType: questionType as 'objective' | 'subjective',
+                                    questionType: questionType as 'objective' | 'subjective' | 'mcq',
                                     scorecardData: scorecardData,
                                     knowledgeBaseBlocks: knowledgeBaseBlocks,
                                     linkedMaterialIds: linkedMaterialIds,
                                     codingLanguages: question.coding_languages || [],
                                     title: question.title,
-                                    settings: settings
+                                    settings: settings,
+                                    mcqOptions: question.mcq_options || [],
+                                    mcqCorrectIndex: question.mcq_options && question.answer
+                                        ? question.mcq_options.indexOf(question.answer as unknown as string)
+                                        : undefined,
                                 }
                             };
                         });
@@ -463,10 +467,10 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
     const scorecardManagerRef = useRef<ScorecardManagerHandle>(null);
 
     // State for tracking active tab (question or answer)
-    const [activeEditorTab, setActiveEditorTab] = useState<'question' | 'answer' | 'scorecard' | 'knowledge'>('question');
+    const [activeEditorTab, setActiveEditorTab] = useState<'question' | 'answer' | 'scorecard' | 'knowledge' | 'mcq'>('question');
 
     // State to track which field is being highlighted for validation errors
-    const [highlightedField, setHighlightedField] = useState<'question' | 'answer' | 'codingLanguage' | 'title' | null>(null);
+    const [highlightedField, setHighlightedField] = useState<'question' | 'answer' | 'codingLanguage' | 'title' | 'mcq' | null>(null);
 
     // State to track if the question count should be highlighted (after adding a new question)
     const [questionCountHighlighted, setQuestionCountHighlighted] = useState(false);
@@ -478,7 +482,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
      * Highlights a field (question or answer) to draw attention to a validation error
      * @param field The field to highlight
      */
-    const highlightField = useCallback((field: 'question' | 'answer' | 'codingLanguage' | 'title') => {
+    const highlightField = useCallback((field: 'question' | 'answer' | 'codingLanguage' | 'title' | 'mcq') => {
         // Set the highlighted field
         setHighlightedField(field);
 
@@ -617,6 +621,38 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                         onValidationError(
                             "Empty correct answer",
                             `Question ${i + 1} has no correct answer. Please add a correct answer`
+                        );
+                    }
+                    return false;
+                }
+            }
+
+            // For MCQ questions, check if options and correct answer are set
+            if (question.config.questionType === 'mcq') {
+                const opts = question.config.mcqOptions || [];
+                const filledOpts = opts.filter(o => o.trim());
+                if (filledOpts.length < 2) {
+                    setCurrentQuestionIndex(i);
+                    setActiveEditorTab('mcq');
+                    highlightField('mcq');
+                    updateCurrentQuestionId(question.id);
+                    if (onValidationError) {
+                        onValidationError(
+                            "Incomplete MCQ options",
+                            `Question ${i + 1} needs at least 2 options`
+                        );
+                    }
+                    return false;
+                }
+                if (question.config.mcqCorrectIndex === undefined || question.config.mcqCorrectIndex === null) {
+                    setCurrentQuestionIndex(i);
+                    setActiveEditorTab('mcq');
+                    highlightField('mcq');
+                    updateCurrentQuestionId(question.id);
+                    if (onValidationError) {
+                        onValidationError(
+                            "No correct option selected",
+                            `Question ${i + 1} needs a correct option marked`
                         );
                     }
                     return false;
@@ -817,7 +853,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
     }, [questions, currentQuestionIndex, onChange, highlightedField]);
 
     // Handle configuration change for the current question
-    const handleConfigChange = useCallback((configUpdate: Partial<QuizQuestionConfig>, options?: { updateTemplate?: boolean, newQuestionType?: 'objective' | 'subjective', newInputType?: 'text' | 'code' | 'audio' }) => {
+    const handleConfigChange = useCallback((configUpdate: Partial<QuizQuestionConfig>, options?: { updateTemplate?: boolean, newQuestionType?: 'objective' | 'subjective' | 'mcq', newInputType?: 'text' | 'code' | 'audio' }) => {
         if (questions.length === 0) return;
 
         const updatedQuestions = [...questions];
@@ -907,7 +943,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
             content: [],
             config: {
                 ...defaultQuestionConfig,
-                questionType: questionType as 'objective' | 'subjective',
+                questionType: (questionType === 'mcq' ? 'objective' : questionType) as 'objective' | 'subjective' | 'mcq',
                 inputType: inputType,
                 codingLanguages: codingLanguages,
                 responseType: responseType,
@@ -1145,7 +1181,11 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                 // Return the formatted question object for all questions, not just those with scorecards
                 const questionData: any = {
                     blocks: question.content,
-                    answer: question.config.correctAnswer || [],
+                    answer: question.config.questionType === 'mcq'
+                        ? (question.config.mcqCorrectIndex !== undefined && question.config.mcqOptions
+                            ? [{ type: 'paragraph', content: [{ type: 'text', text: question.config.mcqOptions[question.config.mcqCorrectIndex] || '', styles: {} }] }]
+                            : [])
+                        : question.config.correctAnswer || [],
                     input_type: inputType,
                     response_type: question.config.responseType,
                     coding_languages: question.config.codingLanguages || [],
@@ -1157,6 +1197,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                     context: getKnowledgeBaseContent(question.config),
                     title: question.config.title,
                     settings: question.config.settings,
+                    mcq_options: question.config.questionType === 'mcq' ? (question.config.mcqOptions || []) : null,
                 };
 
                 // Include ID only for existing questions being updated
@@ -1246,7 +1287,11 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                 return {
                     id: question.id,
                     blocks: question.content,
-                    answer: question.config.correctAnswer || [],
+                    answer: question.config.questionType === 'mcq'
+                        ? (question.config.mcqCorrectIndex !== undefined && question.config.mcqOptions
+                            ? [{ type: 'paragraph', content: [{ type: 'text', text: question.config.mcqOptions[question.config.mcqCorrectIndex] || '', styles: {} }] }]
+                            : [])
+                        : question.config.correctAnswer || [],
                     coding_languages: question.config.codingLanguages || [],
                     type: questionType,
                     input_type: inputType,
@@ -1255,6 +1300,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                     context: getKnowledgeBaseContent(question.config),
                     title: question.config.title,
                     settings: question.config.settings,
+                    mcq_options: question.config.questionType === 'mcq' ? (question.config.mcqOptions || []) : null,
                 };
             });
 
@@ -1530,19 +1576,31 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
             setSelectedQuestionType(option);
 
             // Get the new question type
-            const newQuestionType = option.value as 'objective' | 'subjective';
+            const newQuestionType = option.value as 'objective' | 'subjective' | 'mcq';
 
             // Update the question config with the new question type and also update template if needed
             handleConfigChange({
                 questionType: newQuestionType,
             }, {
                 updateTemplate: true,
-                newQuestionType: newQuestionType,
+                newQuestionType: newQuestionType === 'mcq' ? 'objective' : newQuestionType,
                 newInputType: currentQuestionConfig.inputType
             });
 
-            // Set active tab to question whenever question type changes
-            setActiveEditorTab('question');
+            // Switch to the appropriate tab for the new question type
+            if (newQuestionType === 'mcq') {
+                setActiveEditorTab('mcq');
+                // Initialize empty options array if not already set
+                if (!currentQuestionConfig.mcqOptions || currentQuestionConfig.mcqOptions.length === 0) {
+                    handleConfigChange({
+                        questionType: newQuestionType,
+                        mcqOptions: ['', '', '', ''],
+                    });
+                    return;
+                }
+            } else {
+                setActiveEditorTab('question');
+            }
         }
     }, [handleConfigChange, status, questions, currentQuestionIndex, onChange, currentQuestionConfig.inputType]);
 
@@ -1590,7 +1648,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                 inputType: option.value as 'text' | 'code' | 'audio'
             }, {
                 updateTemplate: true,
-                newQuestionType: currentQuestionConfig.questionType,
+                newQuestionType: currentQuestionConfig.questionType === 'mcq' ? 'objective' : currentQuestionConfig.questionType,
                 newInputType: option.value as 'text' | 'code' | 'audio'
             });
         }
@@ -1875,7 +1933,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                                             ? "text-gray-600 dark:text-gray-300"
                                                             : "text-gray-500"
                                                             }`}>
-                                                            {question.config.responseType === 'chat' ? 'Practice' : 'Exam'} • {question.config.questionType === 'objective' ? 'Objective' : 'Subjective'} • {question.config.inputType}
+                                                            {question.config.responseType === 'chat' ? 'Practice' : 'Exam'} • {question.config.questionType === 'objective' ? 'Objective' : question.config.questionType === 'mcq' ? 'MCQ' : 'Subjective'} • {question.config.inputType}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1989,18 +2047,7 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                                 <HelpCircle size={16} className="mr-2" />
                                                 Question
                                             </button>
-                                            {selectedQuestionType.value !== 'subjective' ? (
-                                                <button
-                                                    className={`flex items-center px-4 py-2 rounded-md text-sm font-medium cursor-pointer ${activeEditorTab === 'answer'
-                                                        ? 'bg-white text-black dark:bg-[#333333] dark:text-white'
-                                                        : 'text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-                                                        }`}
-                                                    onClick={() => setActiveEditorTab('answer')}
-                                                >
-                                                    <Check size={16} className="mr-2" />
-                                                    Correct answer
-                                                </button>
-                                            ) : (
+                                            {selectedQuestionType.value === 'subjective' ? (
                                                 <button
                                                     className={`flex items-center px-4 py-2 rounded-md text-sm font-medium cursor-pointer ${activeEditorTab === 'scorecard'
                                                         ? 'bg-white text-black dark:bg-[#333333] dark:text-white'
@@ -2010,6 +2057,28 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                                 >
                                                     <ClipboardCheck size={16} className="mr-2" />
                                                     Scorecard
+                                                </button>
+                                            ) : selectedQuestionType.value === 'mcq' ? (
+                                                <button
+                                                    className={`flex items-center px-4 py-2 rounded-md text-sm font-medium cursor-pointer ${activeEditorTab === 'mcq'
+                                                        ? 'bg-white text-black dark:bg-[#333333] dark:text-white'
+                                                        : 'text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+                                                        }`}
+                                                    onClick={() => setActiveEditorTab('mcq')}
+                                                >
+                                                    <Check size={16} className="mr-2" />
+                                                    Options
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className={`flex items-center px-4 py-2 rounded-md text-sm font-medium cursor-pointer ${activeEditorTab === 'answer'
+                                                        ? 'bg-white text-black dark:bg-[#333333] dark:text-white'
+                                                        : 'text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+                                                        }`}
+                                                    onClick={() => setActiveEditorTab('answer')}
+                                                >
+                                                    <Check size={16} className="mr-2" />
+                                                    Correct answer
                                                 </button>
                                             )}
                                             <button
@@ -2117,6 +2186,53 @@ const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(({
                                                         placeholder="Enter the correct answer here"
                                                         allowMedia={false}
                                                     />
+                                                </div>
+                                            </div>
+                                        ) : activeEditorTab === 'mcq' ? (
+                                            <div className={`p-6 h-full overflow-y-auto ${highlightedField === 'mcq' ? 'outline outline-2 outline-red-400 rounded-md' : ''}`}>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Add up to 4 options and mark the correct one.</p>
+                                                <div className="space-y-3">
+                                                    {[0, 1, 2, 3].map((i) => {
+                                                        const opts = currentQuestionConfig.mcqOptions ?? ['', '', '', ''];
+                                                        const val = opts[i] ?? '';
+                                                        const isCorrect = currentQuestionConfig.mcqCorrectIndex === i;
+                                                        return (
+                                                            <div key={i} className="flex items-center gap-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (!readOnly) handleConfigChange({ mcqCorrectIndex: i });
+                                                                    }}
+                                                                    className={`w-5 h-5 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
+                                                                        isCorrect
+                                                                            ? 'border-violet-600 bg-violet-600'
+                                                                            : 'border-gray-400 dark:border-gray-500 bg-transparent'
+                                                                    }`}
+                                                                    aria-label={`Mark option ${i + 1} as correct`}
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={val}
+                                                                    placeholder={`Option ${i + 1}`}
+                                                                    disabled={readOnly}
+                                                                    onChange={(e) => {
+                                                                        const currentOpts = currentQuestionConfig.mcqOptions ?? ['', '', '', ''];
+                                                                        const newOpts = ['', '', '', ''].map((_, idx) => currentOpts[idx] ?? '');
+                                                                        newOpts[i] = e.target.value;
+                                                                        handleConfigChange({ mcqOptions: newOpts });
+                                                                    }}
+                                                                    className={`flex-1 px-3 py-2 rounded-md border text-sm bg-white dark:bg-[#1A1A1A] text-black dark:text-white placeholder-gray-400 dark:placeholder-gray-600 outline-none transition-colors ${
+                                                                        isCorrect
+                                                                            ? 'border-violet-500 dark:border-violet-600'
+                                                                            : 'border-gray-300 dark:border-[#333333] focus:border-gray-400 dark:focus:border-[#555555]'
+                                                                    }`}
+                                                                />
+                                                                {isCorrect && (
+                                                                    <span className="text-xs text-violet-600 dark:text-violet-400 font-medium flex-shrink-0">Correct</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ) : activeEditorTab === 'knowledge' ? (

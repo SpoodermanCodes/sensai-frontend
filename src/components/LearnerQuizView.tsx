@@ -934,6 +934,7 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
                         "scorecard_id": scorecardId,
                         "coding_languages": validQuestions[currentQuestionIndex].config.codingLanguages,
                         "context": getKnowledgeBaseContent(validQuestions[currentQuestionIndex].config as QuizQuestionConfig),
+                        "mcq_options": validQuestions[currentQuestionIndex].config.mcqOptions || [],
                         "system_instruction": objectiveInstruction
                     },
                     user_id: userId,
@@ -1288,7 +1289,8 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
                                 }
                             } else if (
                                 // Non-coding objective: build a concept-score scorecard
-                                validQuestions[currentQuestionIndex]?.config?.questionType === 'objective' &&
+                                (validQuestions[currentQuestionIndex]?.config?.questionType === 'objective' ||
+                                 validQuestions[currentQuestionIndex]?.config?.questionType === 'mcq') &&
                                 validQuestions[currentQuestionIndex]?.config?.inputType !== 'code' &&
                                 initialAiMessage.concept_score !== undefined && initialAiMessage.concept_score !== null
                             ) {
@@ -1297,6 +1299,10 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
                                     adjacent_concept: 'Adjacent Concept',
                                     completely_wrong: 'Concept Understanding',
                                     format_error: 'Format / Units',
+                                    plausible_distractor: 'Close But Wrong',
+                                    opposite_concept: 'Opposite Concept',
+                                    partially_correct: 'Partially Correct',
+                                    random_guess: 'Concept Gap',
                                 };
                                 const category = initialAiMessage.wrong_answer_type
                                     ? wrongTypeLabels[initialAiMessage.wrong_answer_type] || 'Concept Proximity'
@@ -2367,6 +2373,7 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
                                 return userMessages.length >= 2 ? userMessages[userMessages.length - 2].content : '';
                             })()}
                             currentQuestionId={validQuestions[currentQuestionIndex]?.id}
+                            isCodingQuestion={validQuestions[currentQuestionIndex]?.config?.inputType === 'code'}
                             alternateSolutions={(() => {
                                 const currentQuestionId = validQuestions[currentQuestionIndex]?.id;
                                 const history = chatHistories[currentQuestionId] || [];
@@ -2404,6 +2411,7 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
                             isAdminView={isAdminView}
                             userId={userId}
                             ref={chatViewRef}
+                            onMcqOptionSelect={(option) => processUserResponse(option, 'text')}
                         />
                     )}
                 </div>

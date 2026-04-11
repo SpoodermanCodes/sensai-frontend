@@ -10,7 +10,12 @@ export interface Performer {
     streakDays: number;
     tasksSolved: number;
     position: number;
-    userId?: number; // Optional user ID to identify the current user
+    userId?: number;
+    masteryScore?: number;
+    correctAnswers?: number;
+    wrongAnswers?: number;
+    repliesSent?: number;
+    hoursLearnt?: number;
 }
 
 interface TopPerformersProps {
@@ -59,8 +64,13 @@ export default function TopPerformers({
                     name: userName,
                     streakDays: stat.streak_count,
                     tasksSolved: stat.tasks_completed,
-                    position: index + 1, // Position based on array order
-                    userId: stat.user.id // Keep track of user ID for identifying current user
+                    position: index + 1,
+                    userId: stat.user.id,
+                    masteryScore: stat.mastery_score,
+                    correctAnswers: stat.correct_answers,
+                    wrongAnswers: stat.wrong_answers,
+                    repliesSent: stat.replies_sent,
+                    hoursLearnt: stat.hours_learnt,
                 };
             });
 
@@ -269,11 +279,15 @@ export default function TopPerformers({
                                             </span>
                                         )}
                                     </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                                        Streak: {performer.streakDays} Day{performer.streakDays === 1 ? "" : "s"}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                                        Solved: {performer.tasksSolved} Task{performer.tasksSolved === 1 ? "" : "s"}
+                                    {performer.masteryScore !== undefined && (
+                                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                                            {performer.masteryScore} pts
+                                        </div>
+                                    )}
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 flex gap-2 flex-wrap mt-0.5">
+                                        <span>🔥 {performer.streakDays}d</span>
+                                        <span>✅ {performer.correctAnswers ?? 0}</span>
+                                        <span>⏱ {performer.hoursLearnt ?? 0}h</span>
                                     </div>
                                 </div>
                             </div>
@@ -294,11 +308,15 @@ export default function TopPerformers({
                                     You
                                 </span>
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                Streak: {currentUser.streakDays} Day{currentUser.streakDays === 1 ? "" : "s"}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                Solved: {currentUser.tasksSolved} Task{currentUser.tasksSolved === 1 ? "" : "s"}
+                            {currentUser.masteryScore !== undefined && (
+                                <div className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                                    {currentUser.masteryScore} pts
+                                </div>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex gap-2 flex-wrap mt-0.5">
+                                <span>🔥 {currentUser.streakDays}d</span>
+                                <span>✅ {currentUser.correctAnswers ?? 0}</span>
+                                <span>⏱ {currentUser.hoursLearnt ?? 0}h</span>
                             </div>
                         </div>
                     </div>
@@ -335,11 +353,15 @@ export default function TopPerformers({
                                         You
                                     </span>
                                 </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    Streak: {currentUser.streakDays} Day{currentUser.streakDays === 1 ? "" : "s"}
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    Solved: {currentUser.tasksSolved} Task{currentUser.tasksSolved === 1 ? "" : "s"}
+                                {currentUser.masteryScore !== undefined && (
+                                    <div className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                                        {currentUser.masteryScore} pts
+                                    </div>
+                                )}
+                                <div className="text-xs text-gray-500 dark:text-gray-400 flex gap-2 flex-wrap mt-0.5">
+                                    <span>🔥 {currentUser.streakDays}d</span>
+                                    <span>✅ {currentUser.correctAnswers ?? 0}</span>
+                                    <span>⏱ {currentUser.hoursLearnt ?? 0}h</span>
                                 </div>
                             </div>
                         </div>

@@ -4,7 +4,6 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArrowDownToLine } from 'lucide-react';
 import CodeXRay from './CodeXRay';
-
 // Code message display component
 const CodeMessageDisplay = ({ code, language }: { code: string, language?: string }) => {
     // Check if the code contains language headers (e.g., "// JAVASCRIPT", "// HTML", etc.)
@@ -243,7 +242,9 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
             (
                 (message.scorecard && message.scorecard.length > 0 && currentQuestionConfig?.questionType === 'subjective') ||
                 (message.code_quality && Object.keys(message.code_quality).length > 0 && currentQuestionConfig?.inputType === 'code') ||
-                (message.concept_score !== undefined && message.concept_score !== null && currentQuestionConfig?.questionType === 'objective' && currentQuestionConfig?.inputType !== 'code')
+                (message.concept_score !== undefined && message.concept_score !== null &&
+                    (currentQuestionConfig?.questionType === 'objective' || currentQuestionConfig?.questionType === 'mcq') &&
+                    currentQuestionConfig?.inputType !== 'code')
             )
         );
     };
@@ -305,11 +306,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                 >
                 <div className="flex flex-col space-y-6 px-2">
                     {chatHistory.map((message, index) => {
-                        const nextAiXrayLen = message.sender === 'user' && message.messageType === 'code'
-                            ? (chatHistory.slice(index + 1).find(m => m.sender === 'ai')?.code_xray?.length ?? 0)
-                            : 0;
                         return (
-                        <div key={message.id + nextAiXrayLen}>
+                        <div key={message.id}>
                             {(() => {
                                 const currentDate = toSafeDate((message as any).timestamp);
                                 if (!currentDate) return null;
@@ -436,25 +434,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                 : undefined
                                                         }
                                                     />
-                                                    {/* Code X-Ray: look for annotations on the AI reply that follows this code message */}
-                                                    {(() => {
-                                                        const nextAiMsg = chatHistory.slice(index + 1).find(m => m.sender === 'ai');
-                                                        if (!nextAiMsg?.code_xray?.length) return null;
-                                                        return (
-                                                            <div className="mt-2">
-                                                                <CodeXRay
-                                                                    code={message.content}
-                                                                    annotations={nextAiMsg.code_xray}
-                                                                    language={
-                                                                        Array.isArray(currentQuestionConfig?.codingLanguages) &&
-                                                                            currentQuestionConfig?.codingLanguages.length > 0
-                                                                            ? currentQuestionConfig?.codingLanguages[0]
-                                                                            : undefined
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        );
-                                                    })()}
                                                 </>
                                             ) : (
                                                 <div>
@@ -481,6 +460,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                     {message.wrong_answer_type === 'adjacent_concept' && <><span>🔀</span> Adjacent Concept</>}
                                                                     {message.wrong_answer_type === 'completely_wrong' && <><span>❌</span> Understanding Gap</>}
                                                                     {message.wrong_answer_type === 'format_error' && <><span>📐</span> Format / Units</>}
+                                                                    {message.wrong_answer_type === 'plausible_distractor' && <><span>🎯</span> Close But Wrong</>}
+                                                                    {message.wrong_answer_type === 'opposite_concept' && <><span>🔄</span> Opposite Concept</>}
+                                                                    {message.wrong_answer_type === 'partially_correct' && <><span>🔶</span> Partially Correct</>}
+                                                                    {message.wrong_answer_type === 'random_guess' && <><span>❓</span> Concept Gap</>}
                                                                     {!message.wrong_answer_type && <><span>✅</span> Concept Closeness</>}
                                                                 </span>
                                                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800" style={{
@@ -528,6 +511,22 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                             </div>
                                                         </div>
                                                     )}
+
+                                                    {/* Code X-Ray inline in chat — shown below AI feedback for coding questions */}
+                                                    {message.sender === 'ai' && message.code_xray && message.code_xray.length > 0 && (() => {
+                                                        // Find the preceding user message's code content
+                                                        const prevUserMsg = chatHistory.slice(0, index).reverse().find(m => m.sender === 'user' && m.messageType === 'code');
+                                                        if (!prevUserMsg) return null;
+                                                        return (
+                                                            <div className="mt-3">
+                                                                <CodeXRay
+                                                                    code={prevUserMsg.content}
+                                                                    annotations={message.code_xray!}
+                                                                    language={currentQuestionConfig?.codingLanguages?.[0]}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })()}
 
                                                     {/* Inline annotations — for text assignment submissions (Red Pen Style) */}
                                                     {message.sender === 'ai' && (message as any).inline_annotations?.length > 0 && (
@@ -598,12 +597,16 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                     } else if (message.scorecard && message.scorecard.length > 0) {
                                                                         onViewScorecard(message.scorecard);
                                                                     } else if (message.concept_score !== undefined && message.concept_score !== null) {
-                                                                        // Objective question: build scorecard on the fly
+                                                                        // Objective/MCQ question: build scorecard on the fly
                                                                         const wrongTypeLabels: Record<string, string> = {
                                                                             terminology_confusion: 'Terminology',
                                                                             adjacent_concept: 'Adjacent Concept',
                                                                             completely_wrong: 'Concept Understanding',
                                                                             format_error: 'Format / Units',
+                                                                            plausible_distractor: 'Close But Wrong',
+                                                                            opposite_concept: 'Opposite Concept',
+                                                                            partially_correct: 'Partially Correct',
+                                                                            random_guess: 'Concept Gap',
                                                                         };
                                                                         const category = message.wrong_answer_type
                                                                             ? wrongTypeLabels[message.wrong_answer_type] || 'Concept Proximity'
