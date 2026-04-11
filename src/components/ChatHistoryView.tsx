@@ -345,25 +345,24 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                     const bubbleVariant = (() => {
                                     if (message.messageType === 'audio') {
                                         const audioBase = message.sender === 'user'
-                                            ? 'bg-[#f3f4f6] text-slate-900 border border-gray-200 dark:bg-transparent dark:text-white dark:border-transparent'
-                                            : 'bg-white text-slate-900 border border-gray-200 dark:bg-[#1A1A1A] dark:text-white dark:border-transparent';
+                                            ? 'bg-[#f4f4f5] text-slate-900 dark:bg-[#2a2a2a] dark:text-white'
+                                            : 'bg-white text-slate-900 border border-gray-100 dark:bg-[#1e1e1e] dark:text-white dark:border-[#2a2a2a]';
                                         return `${audioBase} w-full sm:w-[75%]`;
                                     }
 
                                     if (message.messageType === 'code') {
-                                        // Code blocks already have their own container styling (CodeMessageDisplay).
-                                        // Keep the chat "bubble" transparent to avoid double backgrounds/padding.
-                                        return 'bg-transparent text-slate-900 dark:bg-transparent dark:text-white border-0 w-[90%]';
+                                        return 'bg-transparent text-slate-900 dark:bg-transparent dark:text-white border-0 w-[92%]';
                                     }
 
                                     const textBase = message.sender === 'user'
-                                        ? 'bg-[#f3f4f6] text-slate-900 border border-gray-200 dark:bg-[#333333] dark:text-white dark:border-transparent'
-                                        : 'bg-white text-slate-900 border border-gray-200 dark:bg-[#1A1A1A] dark:text-white dark:border-transparent';
-                                    return `${textBase} max-w-[75%]`;
+                                        ? 'bg-[#f4f4f5] text-slate-900 dark:bg-[#2a2a2a] dark:text-white'
+                                        : 'bg-white text-slate-800 border border-gray-100 dark:bg-[#1e1e1e] dark:text-gray-100 dark:border-[#2a2a2a]';
+                                    return `${textBase} max-w-[78%]`;
                                     })();
 
-                                    // Audio + code shouldn't have the extra bubble padding (prevents "double container" look)
-                                    const bubbleClassName = `rounded-2xl ${(message.messageType === 'audio' || message.messageType === 'code') ? 'py-2' : 'px-4 py-2'} ${bubbleVariant}`;
+                                    const bubbleClassName = `rounded-2xl ${
+                                        message.sender === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                                    } ${(message.messageType === 'audio' || message.messageType === 'code') ? 'py-2' : 'px-4 py-3'} ${bubbleVariant}`;
 
                                     const bubble = (
                                         <div className={bubbleClassName}>
@@ -485,12 +484,12 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
 
                                                     {message.mini_lesson && (
-                                                        <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40">
-                                                            <div className="flex items-start gap-2">
-                                                                <span className="text-lg mt-0.5">💡</span>
+                                                        <div className="mt-4 pt-3 border-t border-amber-100 dark:border-amber-900/30">
+                                                            <div className="flex items-start gap-2.5">
+                                                                <span className="text-base mt-0.5 shrink-0">💡</span>
                                                                 <div className="flex-1">
-                                                                    <div className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Concept Refresher</div>
-                                                                    <div className="text-sm text-amber-900 dark:text-amber-200">
+                                                                    <div className="text-[11px] font-semibold tracking-wide uppercase text-amber-600 dark:text-amber-400 mb-1">Concept Refresher</div>
+                                                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                                                         {message.mini_lesson}
                                                                     </div>
                                                                 </div>
@@ -499,12 +498,12 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                     )}
 
                                                     {message.breakthrough_moment && (
-                                                        <div className="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800/40">
-                                                            <div className="flex items-start gap-2">
-                                                                <span className="text-lg mt-0.5">🎯</span>
+                                                        <div className="mt-4 pt-3 border-t border-emerald-100 dark:border-emerald-900/30">
+                                                            <div className="flex items-start gap-2.5">
+                                                                <span className="text-base mt-0.5 shrink-0">🎯</span>
                                                                 <div className="flex-1">
-                                                                    <div className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mb-1">Breakthrough</div>
-                                                                    <div className="text-sm text-emerald-900 dark:text-emerald-200">
+                                                                    <div className="text-[11px] font-semibold tracking-wide uppercase text-emerald-600 dark:text-emerald-400 mb-1">Breakthrough</div>
+                                                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                                                         {message.breakthrough_moment}
                                                                     </div>
                                                                 </div>
@@ -581,7 +580,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
 
                                                     {shouldShowViewReport(message) && (
-                                                        <div className="my-3">
+                                                        <div className="mt-3">
                                                             <button
                                                                 onClick={() => {
                                                                     // Convert code_quality to scorecard format if it exists
@@ -620,28 +619,28 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                                                                         }]);
                                                                     }
                                                                 }}
-                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-[#333333] dark:hover:bg-[#444444] px-4 py-2 rounded-full text-xs transition-colors cursor-pointer flex items-center"
+                                                                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
                                                                 type="button"
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                                                 </svg>
-                                                                View Report
+                                                                View full report
                                                             </button>
                                                         </div>
                                                     )}
 
                                                     {isErrorMessage(message) && onRetry && (
-                                                        <div className="my-3">
+                                                        <div className="mt-3">
                                                             <button
                                                                 onClick={onRetry}
-                                                                className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-[#333333] dark:hover:bg-[#444444] px-4 py-2 mb-2 rounded-full text-xs transition-colors cursor-pointer flex items-center"
+                                                                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
                                                                 type="button"
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                                 </svg>
-                                                                Retry
+                                                                Try again
                                                             </button>
                                                         </div>
                                                     )}
@@ -690,13 +689,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                     {/* Show "Preparing report" as an AI message */}
                     {showPreparingReport && (
                         <div className="flex justify-start">
-                            <div className="rounded-2xl px-4 py-3 max-w-[75%] bg-indigo-50 text-indigo-900 border border-indigo-200 dark:bg-[#1A1A1A] dark:text-white dark:border-transparent">
-                                <div className="flex items-center">
-                                    <div className="w-4 h-4 border-2 rounded-full animate-spin mr-3 border-indigo-500 border-t-transparent dark:border-white dark:border-t-transparent"></div>
-                                    <div className="flex flex-col">
-                                        <p className="text-sm font-light text-indigo-900 dark:text-white">Preparing report</p>
-                                        <p className="text-xs mt-1 text-indigo-600 dark:text-gray-400">This may take a moment</p>
-                                    </div>
+                            <div className="rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%] bg-white border border-gray-100 dark:bg-[#1e1e1e] dark:border-[#2a2a2a]">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin border-gray-400 border-t-transparent dark:border-gray-500 dark:border-t-transparent shrink-0"></div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Preparing your report…</p>
                                 </div>
                             </div>
                         </div>

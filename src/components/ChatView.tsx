@@ -681,7 +681,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                         </div>
                                     ) : currentQuestionConfig?.questionType === 'mcq' ? (
                                         /* MCQ radio button options */
-                                        <div className="space-y-2 pt-1">
+                                        <div className="space-y-2 pt-1 pb-1">
                                             {(currentQuestionConfig?.mcqOptions || []).filter((o: string) => o.trim()).map((option: string, i: number) => (
                                                 <button
                                                     key={i}
@@ -692,13 +692,13 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                                             onMcqOptionSelect(option);
                                                         }
                                                     }}
-                                                    className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors cursor-pointer ${
+                                                    className={`w-full text-left px-4 py-2.5 rounded-lg border text-sm transition-all cursor-pointer ${
                                                         currentAnswer === option
-                                                            ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-900/20 dark:text-violet-200 dark:border-violet-500'
-                                                            : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50 dark:border-[#333333] dark:bg-[#1A1A1A] dark:text-gray-200 dark:hover:border-[#444444]'
-                                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                            ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-black'
+                                                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-[#2a2a2a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:border-[#444444]'
+                                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 >
-                                                    <span className="font-medium mr-2 text-gray-400 dark:text-gray-500">{String.fromCharCode(65 + i)}.</span>
+                                                    <span className="font-medium mr-2.5 text-gray-400 dark:text-gray-500 text-xs">{String.fromCharCode(65 + i)}</span>
                                                     {option}
                                                 </button>
                                             ))}
@@ -706,13 +706,13 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                     ) : (
                                         /* Hide the text input for coding questions in exam mode */
                                         !(currentQuestionConfig?.responseType === 'exam' && isCodingQuestion) && (
-                                            <div className="relative flex items-center rounded-3xl py-1 overflow-hidden border bg-gray-50 border-gray-300 shadow-sm dark:bg-[#111111] dark:border-[#222222] dark:shadow-none">
+                                            <div className="relative flex items-end rounded-xl overflow-hidden border bg-white border-gray-200 shadow-sm dark:bg-[#1a1a1a] dark:border-[#2a2a2a] dark:shadow-none">
                                                 <div className="flex-1 flex items-center">
                                                     <textarea
                                                         id="no-border-textarea"
                                                         ref={textareaRef}
-                                                        placeholder={taskType === 'learning_material' ? "Type your question here" : taskType === 'assignment' ? "Enter your submission here..." : "Type your answer here"}
-                                                        className="ml-2 w-full bg-transparent auto-expanding-textarea text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-gray-500"
+                                                        placeholder={taskType === 'learning_material' ? "Ask a question..." : taskType === 'assignment' ? "Enter your submission..." : "Type your answer..."}
+                                                        className="ml-2 w-full bg-transparent auto-expanding-textarea text-slate-900 placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-600 text-sm"
                                                         value={currentAnswer}
                                                         onChange={handleInputChange as any}
                                                         onKeyDown={handleTextareaKeyDown}
@@ -723,7 +723,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                                             border: "none",
                                                             outline: "none",
                                                             boxShadow: "none",
-                                                            padding: "12px 24px",
+                                                            padding: "12px 16px",
                                                             resize: "none"
                                                         }}
                                                         onCopy={() => {
@@ -760,17 +760,17 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(({
                                                     />
                                                 </div>
                                                 <button
-                                                    className={`bg-white text-black border border-gray-300 shadow-sm dark:border-transparent dark:shadow-none rounded-full w-10 h-10 mr-2 cursor-pointer flex items-center justify-center transition-colors duration-200 ${isSubmitting || isAiResponding ? 'opacity-50' : 'hover:bg-gray-50 dark:hover:opacity-90'}`}
+                                                    className={`bg-gray-900 text-white dark:bg-white dark:text-black rounded-lg w-8 h-8 mr-2 mb-1.5 cursor-pointer flex items-center justify-center transition-opacity duration-200 ${isSubmitting || isAiResponding || !currentAnswer.trim() ? 'opacity-30' : 'opacity-100 hover:opacity-80'}`}
                                                     onClick={() => handleSubmitAnswer('text')}
                                                     disabled={!currentAnswer.trim() || isSubmitting || isAiResponding}
                                                     aria-label="Submit answer"
                                                     type="button"
                                                 >
                                                     {isSubmitting ? (
-                                                        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin border-black"></div>
+                                                        <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin border-white dark:border-black"></div>
                                                     ) : (
-                                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                            <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                                         </svg>
                                                     )}
                                                 </button>

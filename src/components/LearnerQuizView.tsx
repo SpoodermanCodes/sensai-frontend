@@ -14,7 +14,7 @@ import isEqual from 'lodash/isEqual';
 import { safeLocalStorage } from "@/lib/utils/localStorage";
 import { useAuth } from "@/lib/auth";
 import { useThemePreference } from "@/lib/hooks/useThemePreference";
-import { AttemptData } from './ProgressGraph';
+import { AttemptData } from './ProgressGraph'; // progress graph 
 
 // Add imports for Notion rendering
 import { BlockList, RenderConfig } from "@udus/notion-renderer/components";
@@ -1723,7 +1723,7 @@ Concept Score: Provide a 0-100 score in 'concept_score' field indicating proximi
         setTimeout(() => {
             if (inputRef.current) {
                 inputRef.current.focus();
-            }
+            }  
 
             // Restore saved chat scroll position
             if (chatContainerRef.current) {
